@@ -1,7 +1,10 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-ivory: #F7F5EE;
+  --color-ivory-dark: #1A1F1C;
   --color-emerald-deep: #244C3A;
   --color-emerald-light: #2D6B4F;
   --color-sage: #A6B89A;
@@ -21,6 +24,97 @@
 body {
   background-color: #F7F5EE;
   color: #202720;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.dark body {
+  background-color: #0F1412;
+  color: #E8ECE6;
+}
+
+/* Dark mode overrides for semantic colors */
+.dark .bg-ivory {
+  background-color: #0F1412;
+}
+
+.dark .bg-white {
+  background-color: #1A211E;
+}
+
+.dark .bg-charcoal {
+  background-color: #000000;
+}
+
+.dark .text-charcoal {
+  color: #E8ECE6;
+}
+
+.dark .text-text-main {
+  color: #D0D6CE;
+}
+
+.dark .border-sage\/20 {
+  border-color: rgba(166, 184, 154, 0.15);
+}
+
+.dark .border-sage\/30 {
+  border-color: rgba(166, 184, 154, 0.2);
+}
+
+.dark .bg-emerald-deep\/5 {
+  background-color: rgba(36, 76, 58, 0.2);
+}
+
+.dark .bg-emerald-deep\/10 {
+  background-color: rgba(36, 76, 58, 0.3);
+}
+
+.dark .bg-warning-light {
+  background-color: rgba(232, 117, 112, 0.15);
+}
+
+.dark .bg-positive-light {
+  background-color: rgba(64, 201, 162, 0.15);
+}
+
+.dark .bg-sage\/5 {
+  background-color: rgba(166, 184, 154, 0.08);
+}
+
+.dark .bg-ivory\/50 {
+  background-color: rgba(247, 245, 238, 0.03);
+}
+
+/* Focus styles for accessibility */
+*:focus-visible {
+  outline: 2px solid #C5A15B;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 2px solid #C5A15B;
+  outline-offset: 2px;
+}
+
+/* Screen reader only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Live region for screen reader announcements */
+[aria-live] {
+  position: relative;
 }
 
 .scrollbar-thin::-webkit-scrollbar {
@@ -32,6 +126,10 @@ body {
 .scrollbar-thin::-webkit-scrollbar-thumb {
   background: #A6B89A;
   border-radius: 3px;
+}
+
+.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #3D5C4A;
 }
 
 @keyframes fadeIn {
@@ -50,4 +148,22 @@ body {
 
 .animate-pulse-soft {
   animation: pulse-soft 2s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-pulse-soft,
+  .animate-pulse-ring {
+    animation: none;
+  }
 }

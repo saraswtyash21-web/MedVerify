@@ -5,16 +5,21 @@ import { SAFETY_DISCLAIMER, SHORT_DISCLAIMER } from './utils/safety';
 import { generateResponse, getGreeting, getSuggestedQuestions, ChatResponse } from './utils/knowledge';
 import { exportReportAsPDF } from './utils/pdfExport';
 import { sources } from './data/appData';
+import { ThemeProvider, AuthProvider, useTheme, useAuth } from './contexts';
+import { SignInPage, SignUpPage } from './components/AuthPages';
+import { Dashboard } from './components/Dashboard';
+import { VoiceAssistant } from './components/VoiceAssistant';
 import { 
   Shield, Camera, FileText, MessageCircle, AlertTriangle, 
   CheckCircle, XCircle, Upload, Clock, Search, Download,
   ChevronRight, Info, Eye, Edit3, Globe, ArrowLeft,
-  Heart, BookOpen, HelpCircle, RefreshCw
+  Heart, BookOpen, HelpCircle, RefreshCw, Sun, Moon, LogOut
 } from 'lucide-react';
 
 // Types
-type Page = 'home' | 'scan' | 'report' | 'assistant' | 'safety';
+type Page = 'home' | 'scan' | 'report' | 'assistant' | 'safety' | 'dashboard';
 type Language = 'en' | 'hi';
+type AuthPage = 'signin' | 'signup';
 
 interface ScanHistory {
   id: string;
@@ -87,10 +92,23 @@ const t = {
 };
 
 function App() {
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ThemeProvider>
+  );
+}
+
+function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [language, setLanguage] = useState<Language>('en');
+  const [authPage, setAuthPage] = useState<AuthPage>('signin');
   const [scanHistory, setScanHistory] = useState<ScanHistory[]>([]);
   const [currentReport, setCurrentReport] = useState<VerificationReport | null>(null);
+  const { isAuthenticated } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   const tr = t[language];
 
@@ -105,13 +123,26 @@ function App() {
     setScanHistory(prev => [entry, ...prev].slice(0, 10));
   };
 
+  // If not authenticated, show auth pages
+  if (!isAuthenticated) {
+    if (authPage === 'signup') {
+      return <SignUpPage language={language} initialPage="signup" onSwitchPage={setAuthPage} />;
+    }
+    return <SignInPage language={language} initialPage="signin" onSwitchPage={setAuthPage} />;
+  }
+
+  // Redirect to dashboard if on home page after sign-in
+  if (currentPage === 'home') {
+    // Keep home as dashboard
+  }
+
   return (
-    <div className="min-h-screen bg-ivory font-sans">
+    <div className="min-h-screen bg-ivory font-sans transition-colors duration-300">
       {/* Navigation Header */}
       <header className="bg-emerald-deep text-white sticky top-0 z-50 shadow-lg">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <button 
-            onClick={() => setCurrentPage('home')}
+            onClick={() => setCurrentPage('dashboard')}
             className="flex items-center gap-2 hover:opacity-90 transition-opacity"
           >
             <Shield className="w-7 h-7 text-gold" />
@@ -121,9 +152,9 @@ function App() {
             </div>
           </button>
           
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-1" aria-label="Main navigation">
             {[
-              { page: 'home' as Page, label: tr.home, icon: <Heart className="w-4 h-4" /> },
+              { page: 'dashboard' as Page, label: language === 'hi' ? 'डैशबोर्ड' : 'Dashboard', icon: <Heart className="w-4 h-4" /> },
               { page: 'scan' as Page, label: tr.scan, icon: <Camera className="w-4 h-4" /> },
               { page: 'report' as Page, label: tr.report, icon: <FileText className="w-4 h-4" /> },
               { page: 'assistant' as Page, label: tr.assistant, icon: <MessageCircle className="w-4 h-4" /> },
@@ -145,10 +176,21 @@ function App() {
           </nav>
 
           <div className="flex items-center gap-2">
+            {/* Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-sm transition-all"
+              title={theme === 'dark' ? (language === 'hi' ? 'लाइट मोड' : 'Switch to light mode') : (language === 'hi' ? 'डार्क मोड' : 'Switch to dark mode')}
+              aria-label={theme === 'dark' ? (language === 'hi' ? 'लाइट मोड पर स्विच करें' : 'Switch to light mode') : (language === 'hi' ? 'डार्क मोड पर स्विच करें' : 'Switch to dark mode')}
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+            {/* Language Toggle */}
             <button
               onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-sm transition-all"
               title="Switch language"
+              aria-label={language === 'en' ? 'हिंदी में बदलें' : 'Switch to English'}
             >
               <Globe className="w-4 h-4" />
               <span className="text-xs font-medium">{language === 'en' ? 'हिंदी' : 'EN'}</span>
@@ -157,9 +199,9 @@ function App() {
         </div>
 
         {/* Mobile Navigation */}
-        <div className="md:hidden flex border-t border-white/10">
+        <div className="md:hidden flex border-t border-white/10" role="navigation" aria-label="Mobile navigation">
           {[
-            { page: 'home' as Page, label: tr.home, icon: <Heart className="w-4 h-4" /> },
+            { page: 'dashboard' as Page, label: language === 'hi' ? 'होम' : 'Home', icon: <Heart className="w-4 h-4" /> },
             { page: 'scan' as Page, label: tr.scan, icon: <Camera className="w-4 h-4" /> },
             { page: 'report' as Page, label: tr.report, icon: <FileText className="w-4 h-4" /> },
             { page: 'assistant' as Page, label: tr.assistant, icon: <MessageCircle className="w-4 h-4" /> },
@@ -182,9 +224,10 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 py-6 pb-20">
-        {currentPage === 'home' && (
-          <HomePage 
+      <main className="max-w-6xl mx-auto px-4 py-6 pb-20" role="main">
+        {/* Dashboard (replaces home for signed-in users) */}
+        {(currentPage === 'home' || currentPage === 'dashboard') && (
+          <Dashboard
             language={language}
             setCurrentPage={setCurrentPage}
             scanHistory={scanHistory}
@@ -227,10 +270,16 @@ function App() {
           )
         )}
         {currentPage === 'assistant' && (
-          <AssistantPage 
-            language={language}
-            currentReport={currentReport}
-          />
+          <div className="animate-fade-in">
+            <VoiceAssistant 
+              language={language}
+              currentReport={currentReport}
+            />
+            <AssistantPage 
+              language={language}
+              currentReport={currentReport}
+            />
+          </div>
         )}
         {currentPage === 'safety' && (
           <SafetyPage language={language} />
@@ -238,14 +287,14 @@ function App() {
       </main>
 
       {/* Footer Disclaimer */}
-      <footer className="bg-charcoal text-sage-light py-4 px-4">
+      <footer className="bg-charcoal text-sage-light py-4 px-4 mt-auto" role="contentinfo">
         <div className="max-w-6xl mx-auto text-center">
           <p className="text-xs leading-relaxed max-w-2xl mx-auto">
-            <AlertTriangle className="w-3 h-3 inline mr-1 text-warning" />
-            {tr.disclaimer}
+            <AlertTriangle className="w-3 h-3 inline mr-1 text-warning" aria-hidden="true" />
+            <span id="safety-disclaimer">{tr.disclaimer}</span>
           </p>
           <p className="text-[10px] mt-2 text-sage/60">
-            DEMO APPLICATION — AI/ML Hackathon 2024 | Not for production medical use
+            DEMO APPLICATION — AI/ML Hackathon 2024 | Not for production medical use | Auth: UI-only demo
           </p>
         </div>
       </footer>
@@ -253,7 +302,8 @@ function App() {
   );
 }
 
-// ==================== HOME PAGE ====================
+// HomePage has been replaced by Dashboard component (src/components/Dashboard.tsx)
+// Keeping function for reference but it is no longer rendered.
 function HomePage({ language, setCurrentPage, scanHistory, setCurrentReport }: {
   language: Language;
   setCurrentPage: (page: Page) => void;
@@ -889,12 +939,15 @@ function ReportPage({ language, report, setCurrentPage }: {
   return (
     <div className="animate-fade-in max-w-4xl mx-auto">
       <button
-        onClick={() => setCurrentPage('home')}
+        onClick={() => setCurrentPage('dashboard')}
         className="flex items-center gap-1 text-sm text-text-main/60 hover:text-emerald-deep mb-4 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
         {language === 'hi' ? 'वापस' : 'Back'}
       </button>
+
+      {/* Voice Assistant for Report */}
+      <VoiceAssistant language={language} currentReport={report} />
 
       <div className="bg-white rounded-2xl border border-sage/20 overflow-hidden">
         {/* Header */}
