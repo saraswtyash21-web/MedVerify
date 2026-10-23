@@ -15,12 +15,13 @@ interface AuthPagesProps {
 }
 
 export function SignInPage({ language, onSwitchPage }: AuthPagesProps) {
-  const { signIn, isLoading, authMode, isConfigured, configError } = useAuth();
+  const { signIn, authMode, isConfigured, configError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const isHi = language === 'hi';
 
@@ -28,12 +29,19 @@ export function SignInPage({ language, onSwitchPage }: AuthPagesProps) {
     e.preventDefault();
     setError('');
     setSuccess('');
+    setIsSubmitting(true);
 
-    const result = await signIn(email, password);
-    if (result.success) {
-      setSuccess(language === 'hi' ? 'सफलतापूर्वक साइन इन हो गया!' : 'Successfully signed in!');
-    } else {
-      setError(result.error || (language === 'hi' ? 'साइन इन विफल रहा' : 'Sign in failed'));
+    try {
+      const result = await signIn(email, password);
+      if (result.success) {
+        setSuccess(language === 'hi' ? 'सफलतापूर्वक साइन इन हो गया!' : 'Successfully signed in!');
+      } else {
+        setError(result.error || (language === 'hi' ? 'साइन इन विफल रहा' : 'Sign in failed'));
+      }
+    } catch (err) {
+      setError(language === 'hi' ? 'एक त्रुटि हुई। कृपया पुनः प्रयास करें।' : 'An error occurred. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -176,10 +184,10 @@ export function SignInPage({ language, onSwitchPage }: AuthPagesProps) {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isSubmitting}
               className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-deep text-white rounded-xl font-semibold hover:bg-emerald-light transition-all shadow-lg shadow-emerald-deep/20 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isLoading ? (
+              {isSubmitting ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   {isHi ? 'साइन इन हो रहा है...' : 'Signing in...'}
@@ -219,7 +227,7 @@ export function SignInPage({ language, onSwitchPage }: AuthPagesProps) {
 }
 
 export function SignUpPage({ language, onSwitchPage }: AuthPagesProps) {
-  const { signUp, isLoading, authMode, isConfigured, configError } = useAuth();
+  const { signUp, authMode, isConfigured, configError } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -227,6 +235,7 @@ export function SignUpPage({ language, onSwitchPage }: AuthPagesProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -238,11 +247,18 @@ export function SignUpPage({ language, onSwitchPage }: AuthPagesProps) {
       return;
     }
 
-    const result = await signUp(name, email, password);
-    if (result.success) {
-      setSuccess(language === 'hi' ? 'अकाउंट सफलतापूर्वक बनाया गया!' : 'Account created successfully!');
-    } else {
-      setError(result.error || (language === 'hi' ? 'साइन अप विफल रहा' : 'Sign up failed'));
+    setIsSubmitting(true);
+    try {
+      const result = await signUp(name, email, password);
+      if (result.success) {
+        setSuccess(language === 'hi' ? 'अकाउंट सफलतापूर्वक बनाया गया!' : 'Account created successfully!');
+      } else {
+        setError(result.error || (language === 'hi' ? 'साइन अप विफल रहा' : 'Sign up failed'));
+      }
+    } catch (err) {
+      setError(language === 'hi' ? 'एक त्रुटि हुई। कृपया पुनः प्रयास करें।' : 'An error occurred. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -422,10 +438,10 @@ export function SignUpPage({ language, onSwitchPage }: AuthPagesProps) {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isSubmitting}
               className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-deep text-white rounded-xl font-semibold hover:bg-emerald-light transition-all shadow-lg shadow-emerald-deep/20 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isLoading ? (
+              {isSubmitting ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   {isHi ? 'अकाउंट बनाया जा रहा है...' : 'Creating account...'}
