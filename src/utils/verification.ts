@@ -1,7 +1,13 @@
 // MedVerify Verification Module
-// Handles expiry checking, alert matching, and report generation
+// Handles expiry checking, alert matching, and report generation.
+//
+// IMPORTANT: This module respects src/config.ts. When no real data source is
+// configured, verification returns UNABLE_TO_VERIFY with an honest explanation.
+// Synthetic demo records are NEVER used for real verification.
 
-import { AlertRecord, alertRecords, sources, SourceInfo } from '../data/appData';
+import { AlertRecord, getRecordsForMatching, sources, SourceInfo } from '../data/appData';
+import { hasAnyRealDataSource, isDemoMode, getEnabledSources } from '../config';
+import { SAFETY_DISCLAIMER } from './safety';
 
 export type VerificationOutcome = 'ALERT_MATCH_FOUND' | 'NO_ALERT_FOUND' | 'UNABLE_TO_VERIFY';
 
@@ -24,10 +30,11 @@ export interface ExpiryCheck {
 
 export interface MatchResult {
   matched: boolean;
-  matchType: 'exact-batch' | 'product-manufacturer' | 'similar-name' | 'none';
+  matchType: 'exact-batch' | 'product-manufacturer' | 'similar-name' | 'none' | 'no-data-source';
   records: AlertRecord[];
   confidence: 'high' | 'medium' | 'low';
   explanation: string;
+  dataSourceUsed: 'real' | 'none';
 }
 
 export interface VerificationReport {
@@ -41,6 +48,7 @@ export interface VerificationReport {
   warnings: string[];
   nextSteps: string[];
   disclaimer: string;
+  dataModeNote: string;
 }
 
 // Normalize text for comparison
@@ -56,29 +64,24 @@ function normalize(text: string): string {
 function parseExpiryDate(dateStr: string): Date | null {
   if (!dateStr) return null;
 
-  // Try various date formats
   const formats = [
-    /^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/, // DD/MM/YYYY
-    /^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})$/, // DD/MM/YY
-    /^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/, // YYYY/MM/DD
-    /^([A-Za-z]+)\s*(\d{4})$/, // Month YYYY
+    /^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/,
+    /^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})$/,
+    /^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/,
+    /^([A-Za-z]+)\s*(\d{4})$/,
   ];
 
-  // DD/MM/YYYY
   let match = dateStr.match(formats[0]);
   if (match) {
     const day = parseInt(match[1]);
     const month = parseInt(match[2]) - 1;
     const year = parseInt(match[3]);
-    // Assume DD/MM/YYYY format (Indian standard)
     if (day <= 31 && month <= 11) {
       return new Date(year, month, day);
     }
-    // Try MM/DD/YYYY
     return new Date(year, day - 1, month + 1);
   }
 
-  // DD/MM/YY
   match = dateStr.match(formats[1]);
   if (match) {
     const day = parseInt(match[1]);
@@ -90,13 +93,11 @@ function parseExpiryDate(dateStr: string): Date | null {
     }
   }
 
-  // YYYY/MM/DD
   match = dateStr.match(formats[2]);
   if (match) {
     return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
   }
 
-  // Month YYYY
   match = dateStr.match(formats[3]);
   if (match) {
     const monthNames = ['january', 'february', 'march', 'april', 'may', 'june',
@@ -107,7 +108,6 @@ function parseExpiryDate(dateStr: string): Date | null {
     if (monthIdx >= 0) {
       const month = monthIdx % 12;
       const year = parseInt(match[2]);
-      // End of the month
       return new Date(year, month + 1, 0);
     }
   }
@@ -172,7 +172,7 @@ export function checkExpiry(expiryDateStr: string): ExpiryCheck {
   };
 }
 
-// Calculate string similarity (simple Levenshtein-based)
+// Calculate string similarity
 function stringSimilarity(a: string, b: string): number {
   const na = normalize(a);
   const nb = normalize(b);
@@ -180,7 +180,6 @@ function stringSimilarity(a: string, b: string): number {
   if (na === nb) return 1.0;
   if (na.length === 0 || nb.length === 0) return 0;
   
-  // Simple character overlap ratio
   const charsA = new Set(na.split(''));
   const charsB = new Set(nb.split(''));
   let common = 0;
@@ -189,10 +188,23 @@ function stringSimilarity(a: string, b: string): number {
   return common / Math.max(charsA.size, charsB.size);
 }
 
-// Match against alert records
+// Match against alert records — ONLY uses real data sources.
+// When no real data source is configured, returns a clear "no data source" result.
 export function matchAlerts(input: VerificationInput): MatchResult {
-  const warnings: string[] = [];
-  
+  const { records, source, hasRealData } = getRecordsForMatching();
+
+  // No real data source configured — cannot verify
+  if (!hasRealData || records.length === 0) {
+    return {
+      matched: false,
+      matchType: 'no-data-source',
+      records: [],
+      confidence: 'low',
+      explanation: 'Unable to verify against live sources. No real quality-alert database is currently connected to MedVerify. To enable verification, a verified data source (e.g., CDSCO NSQ records) must be imported and configured in the application settings.',
+      dataSourceUsed: 'none'
+    };
+  }
+
   // If no useful identifiers, cannot match
   if (!input.productName && !input.batchNumber && !input.manufacturer) {
     return {
@@ -200,14 +212,15 @@ export function matchAlerts(input: VerificationInput): MatchResult {
       matchType: 'none',
       records: [],
       confidence: 'low',
-      explanation: 'Insufficient information to check against quality alert records. At minimum, a product name is needed.'
+      explanation: 'Insufficient information to check against quality alert records. At minimum, a product name is needed.',
+      dataSourceUsed: 'real'
     };
   }
 
   // Strategy 1: Exact batch match (highest confidence)
   if (input.batchNumber) {
-    const exactBatchMatches = alertRecords.filter(
-      record => normalize(record.batchNumber) === normalize(input.batchNumber)
+    const exactBatchMatches = records.filter(
+      (record: AlertRecord) => normalize(record.batchNumber) === normalize(input.batchNumber)
     );
 
     if (exactBatchMatches.length > 0) {
@@ -216,14 +229,15 @@ export function matchAlerts(input: VerificationInput): MatchResult {
         matchType: 'exact-batch',
         records: exactBatchMatches,
         confidence: 'high',
-        explanation: `EXACT BATCH MATCH: Batch number "${input.batchNumber}" matches ${exactBatchMatches.length} alert record(s). This is the highest confidence match type. The specific batch has been flagged for quality concerns.`
+        explanation: `EXACT BATCH MATCH: Batch number "${input.batchNumber}" matches ${exactBatchMatches.length} alert record(s) from verified sources. This is the highest confidence match type.`,
+        dataSourceUsed: 'real'
       };
     }
   }
 
   // Strategy 2: Product + Manufacturer match
   if (input.productName && input.manufacturer) {
-    const productMfrMatches = alertRecords.filter(record => {
+    const productMfrMatches = records.filter((record: AlertRecord) => {
       const nameMatch = normalize(record.productName) === normalize(input.productName);
       const mfrMatch = normalize(record.manufacturer) === normalize(input.manufacturer);
       return nameMatch && mfrMatch;
@@ -235,14 +249,15 @@ export function matchAlerts(input: VerificationInput): MatchResult {
         matchType: 'product-manufacturer',
         records: productMfrMatches,
         confidence: 'medium',
-        explanation: `PRODUCT + MANUFACTURER MATCH: The product "${input.productName}" by "${input.manufacturer}" has ${productMfrMatches.length} alert record(s). However, the batch numbers differ. Alerts for other batches do not necessarily apply to your batch. Review the specific batch numbers in the matched records.`
+        explanation: `PRODUCT + MANUFACTURER MATCH from verified sources: "${input.productName}" by "${input.manufacturer}" has ${productMfrMatches.length} alert record(s). However, the batch numbers differ. Alerts for other batches do not necessarily apply to your batch.`,
+        dataSourceUsed: 'real'
       };
     }
   }
 
   // Strategy 3: Product name only (low confidence, candidates only)
   if (input.productName) {
-    const nameMatches = alertRecords.filter(record => {
+    const nameMatches = records.filter((record: AlertRecord) => {
       const similarity = stringSimilarity(record.productName, input.productName);
       return similarity > 0.7;
     });
@@ -253,18 +268,20 @@ export function matchAlerts(input: VerificationInput): MatchResult {
         matchType: 'similar-name',
         records: nameMatches,
         confidence: 'low',
-        explanation: `SIMILAR NAME CANDIDATES: Found ${nameMatches.length} record(s) with similar product names. These are NOT confirmed matches. Product name similarity alone is insufficient to confirm a batch match. Different strengths, manufacturers, or batches may be involved. Manual review is required.`
+        explanation: `SIMILAR NAME CANDIDATES from verified sources: Found ${nameMatches.length} record(s) with similar product names. These are NOT confirmed matches. Manual review is required.`,
+        dataSourceUsed: 'real'
       };
     }
   }
 
-  // No matches found
+  // No matches found in real data
   return {
     matched: false,
     matchType: 'none',
     records: [],
     confidence: 'low',
-    explanation: 'No matching quality alert records were found in the checked sources. This does NOT mean the medicine is genuine or safe — it only means no alert was found in the available databases, which may not be comprehensive.'
+    explanation: `No matching quality alert records were found in the ${records.length} verified record(s) from configured sources. This does NOT mean the medicine is genuine or safe — it only means no alert was found in the available databases, which may not be comprehensive.`,
+    dataSourceUsed: 'real'
   };
 }
 
@@ -274,22 +291,31 @@ export function generateReport(input: VerificationInput): VerificationReport {
   const matchResult = matchAlerts(input);
   const warnings: string[] = [];
   const nextSteps: string[] = [];
+  const hasRealData = hasAnyRealDataSource();
 
-  // Determine outcome
+  // Determine outcome — honest about data availability
   let outcome: VerificationOutcome;
+  let dataModeNote: string;
   
-  if (matchResult.matched && matchResult.confidence === 'high') {
+  if (!hasRealData) {
+    // No real data source — always UNABLE_TO_VERIFY
+    outcome = 'UNABLE_TO_VERIFY';
+    dataModeNote = 'No verified quality-alert database is connected. Verification against live sources is not possible. Expiry date checking is still performed from the scanned packaging.';
+    warnings.push('⚠️ Unable to verify against live sources. No real data source is configured.');
+  } else if (matchResult.matched && (matchResult.confidence === 'high' || matchResult.confidence === 'medium')) {
     outcome = 'ALERT_MATCH_FOUND';
-  } else if (matchResult.matched || matchResult.matchType === 'product-manufacturer') {
-    outcome = 'ALERT_MATCH_FOUND';
+    dataModeNote = `Verification performed against ${matchResult.records.length} record(s) from configured real sources.`;
   } else if (matchResult.matchType === 'similar-name') {
     outcome = 'UNABLE_TO_VERIFY';
-    warnings.push('Similar product names were found in alert records but could not be confirmed as matches.');
+    dataModeNote = 'Similar names found in verified sources but could not be confirmed as matches.';
+    warnings.push('Similar product names were found in verified sources but could not be confirmed as matches.');
   } else if (!input.productName && !input.batchNumber) {
     outcome = 'UNABLE_TO_VERIFY';
+    dataModeNote = 'Insufficient information extracted to perform a meaningful check.';
     warnings.push('Insufficient information was extracted to perform a meaningful check.');
   } else {
     outcome = 'NO_ALERT_FOUND';
+    dataModeNote = `No alert found in ${matchResult.records.length} verified record(s) from configured sources. This does NOT confirm medicine safety or authenticity.`;
   }
 
   // Add expiry warnings
@@ -310,20 +336,20 @@ export function generateReport(input: VerificationInput): VerificationReport {
     nextSteps.push('Note the batch number and alert details for reference.');
     nextSteps.push('Report the issue to CDSCO or your state drug control authority if appropriate.');
   } else if (outcome === 'NO_ALERT_FOUND') {
-    nextSteps.push('No alert was found, but this does not confirm the medicine is genuine or safe.');
+    nextSteps.push('No alert was found in verified sources, but this does not confirm the medicine is genuine or safe.');
     nextSteps.push('If you have any concerns about the medicine, consult a qualified pharmacist.');
     nextSteps.push('Check the physical condition of the packaging and medicine.');
   } else {
-    nextSteps.push('Verification could not be completed due to insufficient or ambiguous information.');
-    nextSteps.push('Try uploading a clearer image or manually entering the medicine details.');
+    nextSteps.push('Verification could not be completed. Configure a real data source to enable quality-alert checking.');
+    nextSteps.push('Try uploading a clearer image or manually entering the medicine details for expiry checking.');
     nextSteps.push('Consult a pharmacist for professional verification.');
   }
 
   // Add missing field warnings
-  if (!input.batchNumber) {
+  if (!input.batchNumber && hasRealData) {
     warnings.push('Batch number not available — exact batch matching was not possible.');
   }
-  if (!input.manufacturer) {
+  if (!input.manufacturer && hasRealData) {
     warnings.push('Manufacturer not identified — manufacturer-level matching was not possible.');
   }
 
@@ -337,7 +363,8 @@ export function generateReport(input: VerificationInput): VerificationReport {
     sourcesChecked: sources,
     warnings,
     nextSteps,
-    disclaimer: 'MedVerify provides informational checks against the records available to it. It cannot certify authenticity or guarantee medicine safety. For concerns, consult a qualified pharmacist or the relevant official authority.'
+    disclaimer: SAFETY_DISCLAIMER,
+    dataModeNote
   };
 }
 
@@ -356,15 +383,15 @@ export function formatOutcome(outcome: VerificationOutcome): {
         color: 'text-warning',
         bgColor: 'bg-warning-light',
         icon: '⚠️',
-        description: 'A matching quality alert was found in the checked sources. This medicine batch or product has been flagged. Do not use until verified by a pharmacist or regulatory authority.'
+        description: 'A matching quality alert was found in verified sources. This medicine batch or product has been flagged. Do not use until verified by a pharmacist or regulatory authority.'
       };
     case 'NO_ALERT_FOUND':
       return {
-        label: 'NO ALERT FOUND IN CHECKED SOURCES',
+        label: 'NO ALERT FOUND IN VERIFIED SOURCES',
         color: 'text-positive',
         bgColor: 'bg-positive-light',
         icon: '✓',
-        description: 'No quality alert was found in the databases checked. This does NOT mean the medicine is genuine, authentic, or safe. The checked databases may not be comprehensive.'
+        description: 'No quality alert was found in the verified sources currently connected. This does NOT mean the medicine is genuine, authentic, or safe. The connected databases may not be comprehensive.'
       };
     case 'UNABLE_TO_VERIFY':
       return {
@@ -372,7 +399,7 @@ export function formatOutcome(outcome: VerificationOutcome): {
         color: 'text-gold',
         bgColor: 'bg-ivory',
         icon: '?',
-        description: 'Verification could not be completed due to insufficient, ambiguous, or conflicting information. Manual review by a pharmacist is recommended.'
+        description: 'Verification could not be completed. This may be because no real data source is configured, or because the extracted information was insufficient or ambiguous. Manual review by a pharmacist is recommended.'
       };
   }
 }

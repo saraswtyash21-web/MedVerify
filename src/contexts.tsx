@@ -70,9 +70,19 @@ export function useTheme() {
 }
 
 // ==================== AUTH CONTEXT ====================
-// IMPORTANT: This is a UI-only demonstration. No real authentication is performed.
-// For production use, integrate with a real auth service (Firebase Auth, Auth0, 
-// Supabase Auth, etc.) and never store passwords in localStorage.
+// ⚠️ DEMO-ONLY AUTHENTICATION
+// This is NOT secure authentication. It uses localStorage with plain-text
+// passwords for UI demonstration purposes only.
+//
+// For production use, you MUST integrate a real authentication service:
+// - Supabase Auth (free tier available)
+// - Firebase Authentication
+// - Auth0
+// - AWS Cognito
+// - Or another identity provider
+//
+// Never store passwords in localStorage. Never trust client-side auth for
+// protecting sensitive data or operations.
 
 interface User {
   name: string;

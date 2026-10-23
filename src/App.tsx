@@ -6,6 +6,7 @@ import { generateResponse, getGreeting, getSuggestedQuestions, ChatResponse } fr
 import { exportReportAsPDF } from './utils/pdfExport';
 import { BarcodeScanResult } from './utils/barcode';
 import { sources } from './data/appData';
+import { isDemoMode, hasAnyRealDataSource, config } from './config';
 import { ThemeProvider, AuthProvider, useTheme, useAuth } from './contexts';
 import { SignInPage, SignUpPage } from './components/AuthPages';
 import { Dashboard } from './components/Dashboard';
@@ -142,6 +143,18 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-ivory font-sans transition-colors duration-300">
       {/* Navigation Header */}
+      {/* Demo Mode Banner */}
+      {isDemoMode() && (
+        <div className="bg-gold/90 text-charcoal text-xs py-1.5 px-4 text-center font-medium" role="status">
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden="true">⚠️</span>
+            {language === 'hi' 
+              ? 'डेमो मोड — कोई वास्तविक डेटा स्रोत कॉन्फ़िगर नहीं। सत्यापन उपलब्ध नहीं।'
+              : 'Demo mode — No real data source configured. Verification against live sources is unavailable.'}
+          </span>
+        </div>
+      )}
+
       <header className="bg-emerald-deep text-white sticky top-0 z-50 shadow-lg">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <button 
@@ -430,29 +443,58 @@ function HomePage({ language, setCurrentPage, scanHistory, setCurrentReport }: {
         )}
       </section>
 
-      {/* Data Sources Panel */}
-      <section className="bg-white rounded-2xl p-5 border border-sage/20">
+      {/* Data Sources Panel — honest status of connected sources */}
+      <section className="bg-white dark:bg-[#1A211E] rounded-2xl p-5 border border-sage/20">
         <h3 className="font-semibold text-charcoal mb-3 flex items-center gap-2">
           <Info className="w-4 h-4 text-emerald-deep" />
-          {tr.sourcesChecked}
+          {language === 'hi' ? 'डेटा स्रोत स्थिति' : 'Data Source Status'}
         </h3>
         <div className="space-y-3">
           {sources.map((source, i) => (
             <div key={i} className="flex items-start gap-3 text-sm">
-              <CheckCircle className="w-4 h-4 text-positive mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="font-medium text-charcoal">{source.name}</p>
+              {source.enabled ? (
+                <CheckCircle className="w-4 h-4 text-positive mt-0.5 flex-shrink-0" aria-hidden="true" />
+              ) : (
+                <XCircle className="w-4 h-4 text-warning mt-0.5 flex-shrink-0" aria-hidden="true" />
+              )}
+              <div className="flex-1">
+                <p className="font-medium text-charcoal">
+                  {source.name}
+                  {!source.enabled && (
+                    <span className="ml-2 text-xs font-normal text-warning">
+                      ({language === 'hi' ? 'कनेक्टेड नहीं' : 'Not connected'})
+                    </span>
+                  )}
+                </p>
                 <p className="text-text-main/50 text-xs">
-                  {source.publisher} • {source.recordCount} records • Retrieved: {source.retrievalDate}
+                  {source.publisher}
+                  {source.enabled 
+                    ? ` • ${source.recordCount} records • Retrieved: ${source.retrievalDate || 'Unknown'}`
+                    : ` • ${language === 'hi' ? 'कोई रिकॉर्ड लोड नहीं' : 'No records loaded'}`}
+                </p>
+                <p className="text-text-main/40 text-xs mt-0.5 italic">
+                  {source.limitations}
                 </p>
               </div>
             </div>
           ))}
         </div>
+        {!hasAnyRealDataSource() && (
+          <div className="mt-3 p-3 bg-gold/10 dark:bg-gold/5 border border-gold/20 rounded-xl">
+            <p className="text-xs text-text-main/70 dark:text-[#D0D6CE]">
+              <span className="font-semibold text-gold">
+                {language === 'hi' ? 'वर्तमान स्थिति: ' : 'Current status: '}
+              </span>
+              {language === 'hi'
+                ? 'कोई वास्तविक डेटा स्रोत कॉन्फ़िगर नहीं है। सत्यापन उपलब्ध नहीं है। केवल एक्सपायरी डेट की जांच की जाती है।'
+                : 'No real data source is configured. Verification against quality-alert records is unavailable. Only expiry date checking is functional.'}
+            </p>
+          </div>
+        )}
         <p className="text-xs text-text-main/40 mt-3 italic">
           {language === 'hi' 
-            ? 'नोट: डेटाबेस व्यापक नहीं हो सकते हैं। कोई अलर्ट नहीं मिलने का मतलब दवा की प्रामाणिकता नहीं है।'
-            : 'Note: Databases may not be comprehensive. No alert found does not confirm medicine authenticity.'}
+            ? 'नोट: "कोई अलर्ट नहीं" का मतलब दवा सुरक्षित या असली है ऐसा नहीं है। डेटाबेस व्यापक नहीं हो सकते।'
+            : 'Note: "No alert found" never confirms a medicine is safe or genuine. Databases may not be comprehensive.'}
         </p>
       </section>
     </div>
@@ -574,45 +616,36 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
     addScanToHistory(verificationReport);
   };
 
+  // Demo samples — clearly labeled, NOT real medicines.
+  // These exercise the OCR field-editing and expiry-checking UI only.
+  // They do NOT trigger real alert matches (no real data source is configured).
   const demoSamples = [
     {
-      name: 'Demo: Expired Medicine',
+      name: 'Demo: Expired packaging (sample)',
       fields: {
         productName: 'Paracetamol',
         strength: '500mg',
         dosageForm: 'Tablet',
-        manufacturer: 'Demo Pharma Ltd',
-        batchNumber: 'DP2024001',
+        manufacturer: 'Sample Manufacturer Name',
+        batchNumber: 'SAMPLE-BATCH-001',
         expiryDate: '03/2023',
         manufacturingDate: '03/2021'
       }
     },
     {
-      name: 'Demo: Valid Medicine',
+      name: 'Demo: Future expiry (sample)',
       fields: {
         productName: 'Amoxicillin',
         strength: '250mg',
         dosageForm: 'Capsule',
-        manufacturer: 'Different Pharma Co',
-        batchNumber: 'DIFF-AMX-2024-999',
-        expiryDate: '12/2026',
+        manufacturer: 'Sample Manufacturer Name',
+        batchNumber: 'SAMPLE-BATCH-002',
+        expiryDate: '12/2027',
         manufacturingDate: '01/2024'
       }
     },
     {
-      name: 'Demo: Alert Match',
-      fields: {
-        productName: 'Metformin',
-        strength: '500mg',
-        dosageForm: 'Tablet',
-        manufacturer: 'HealthCorp Pharmaceuticals',
-        batchNumber: 'HC-MET-500-B1234',
-        expiryDate: '06/2025',
-        manufacturingDate: '06/2023'
-      }
-    },
-    {
-      name: 'Demo: Unclear Image',
+      name: 'Demo: Missing fields (sample)',
       fields: {
         productName: '',
         strength: '',
@@ -713,18 +746,19 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
             </p>
           </div>
 
-          {/* Disclaimer */}
-          <div className="bg-gold/10 dark:bg-gold/5 border border-gold/20 rounded-xl p-3 flex items-start gap-2">
-            <Info className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-text-main/60 dark:text-[#D0D6CE]">
-              <span className="font-medium text-gold">
-                {language === 'hi' ? 'बारकोड स्कैन हुआ — उत्पाद विवरण सत्यापित नहीं।' : 'Barcode scanned — product details not verified.'}
-              </span>
-              {' '}
-              {language === 'hi'
-                ? 'बारकोड स्कैन करने से दवा की पहचान, प्रामाणिकता या सुरक्षा की पुष्टि नहीं होती है।'
-                : "Scanning a barcode does not confirm a medicine's identity, authenticity, or safety."}
-            </p>
+          {/* Disclaimer — prominent and honest */}
+          <div role="status" className="bg-gold/10 dark:bg-gold/5 border border-gold/20 rounded-xl p-3 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" aria-hidden="true" />
+            <div>
+              <p className="text-xs font-semibold text-gold mb-0.5">
+                {language === 'hi' ? 'बारकोड पहचान या सुरक्षा साबित नहीं करता' : 'A barcode does not prove identity or safety'}
+              </p>
+              <p className="text-xs text-text-main/60 dark:text-[#D0D6CE]">
+                {language === 'hi'
+                  ? 'बारकोड स्कैन करने से केवल पैकेजिंग पर छपा नंबर पढ़ा जाता है। यह दवा की पहचान, प्रामाणिकता या सुरक्षा की पुष्टि नहीं करता। कोई उत्पाद डेटाबेस कनेक्ट नहीं है।'
+                  : 'Scanning a barcode only reads the number printed on the packaging. It does NOT identify, authenticate, or verify the medicine. No product database is connected.'}
+              </p>
+            </div>
           </div>
         </div>
       )}
@@ -767,7 +801,7 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
                 >
                   <p className="text-sm font-medium text-charcoal">{demo.name}</p>
                   <p className="text-xs text-warning/80 mt-0.5">
-                    {language === 'hi' ? 'डेमो — असली दवा रिकॉर्ड नहीं' : 'DEMO — NOT A REAL MEDICINE RECORD'}
+                    {language === 'hi' ? 'डेमो — UI परीक्षण के लिए, असली दवा नहीं' : 'DEMO — For UI testing only. Not a real medicine.'}
                   </p>
                 </button>
               ))}
@@ -962,6 +996,17 @@ function ReportInline({ report, language, setCurrentPage }: {
         </div>
       </div>
 
+      {/* Data Mode Note — honest explanation of what was checked */}
+      <div className="px-5 py-3 bg-gold/5 dark:bg-gold/5 border-b border-gold/10 flex items-start gap-2">
+        <Info className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" aria-hidden="true" />
+        <p className="text-xs text-text-main/70 dark:text-[#D0D6CE] leading-relaxed">
+          <span className="font-semibold text-gold">
+            {language === 'hi' ? 'डेटा स्थिति: ' : 'Data status: '}
+          </span>
+          {report.dataModeNote}
+        </p>
+      </div>
+
       {/* Details */}
       <div className="p-5 space-y-4">
         {/* Expiry Check */}
@@ -1074,6 +1119,17 @@ function ReportPage({ language, report, setCurrentPage }: {
               <p className="text-sm text-text-main/70 mt-1">{outcomeInfo.description}</p>
             </div>
           </div>
+        </div>
+
+        {/* Data Mode Note */}
+        <div className="px-5 py-3 bg-gold/5 dark:bg-gold/5 border-b border-gold/10 flex items-start gap-2">
+          <Info className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" aria-hidden="true" />
+          <p className="text-xs text-text-main/70 dark:text-[#D0D6CE] leading-relaxed">
+            <span className="font-semibold text-gold">
+              {language === 'hi' ? 'डेटा स्थिति: ' : 'Data status: '}
+            </span>
+            {report.dataModeNote}
+          </p>
         </div>
 
         {/* Full Report Content */}

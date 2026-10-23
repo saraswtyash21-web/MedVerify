@@ -3,7 +3,7 @@
 
 import { useState, FormEvent } from 'react';
 import { useAuth } from '../contexts';
-import { Shield, Eye, EyeOff, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle, Info } from 'lucide-react';
+import { Shield, Eye, EyeOff, Mail, Lock, User, ArrowRight, AlertCircle, AlertTriangle, CheckCircle, Info } from 'lucide-react';
 
 type AuthPage = 'signin' | 'signup';
 type Language = 'en' | 'hi';
@@ -53,14 +53,19 @@ export function SignInPage({ language, onSwitchPage }: AuthPagesProps) {
 
         {/* Form Card */}
         <div className="bg-white rounded-2xl shadow-lg border border-sage/20 p-6 md:p-8">
-          {/* Demo Notice */}
-          <div className="bg-gold/10 border border-gold/20 rounded-xl p-3 mb-5 flex items-start gap-2">
-            <Info className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-text-main/70 leading-relaxed">
-              {isHi 
-                ? 'यह डेमो UI है। कोई वास्तविक प्रमाणीकरण सेवा कॉन्फ़िगर नहीं है। कोई भी मान्य ईमेल और पासवर्ड (6+ अक्षर) काम करेगा।'
-                : 'This is a demo UI. No real authentication service is configured. Any valid email and password (6+ characters) will work for demonstration.'}
-            </p>
+          {/* Demo Notice — prominent and honest */}
+          <div role="status" className="bg-gold/10 border border-gold/20 rounded-xl p-3 mb-5 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" aria-hidden="true" />
+            <div>
+              <p className="text-xs font-semibold text-gold mb-0.5">
+                {isHi ? 'डेमो-केवल लॉगिन — सुरक्षित नहीं' : 'Demo-only login — NOT secure'}
+              </p>
+              <p className="text-xs text-text-main/70 leading-relaxed">
+                {isHi 
+                  ? 'यह UI-मात्र डेमो है। कोई वास्तविक प्रमाणीकरण सेवा कॉन्फ़िगर नहीं है। पासवर्ड ब्राउज़र में सादे टेक्स्ट में सहेजे जाते हैं — उत्पादन के लिए उपयुक्त नहीं। किसी भी मान्य ईमेल और पासवर्ड (6+ अक्षर) से प्रवेश करें।'
+                  : 'This is a UI-only demo. No real authentication service is configured. Passwords are stored as plain text in your browser — not suitable for production. Sign in with any valid email and password (6+ characters).'}
+              </p>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
@@ -221,14 +226,19 @@ export function SignUpPage({ language, onSwitchPage }: AuthPagesProps) {
 
         {/* Form Card */}
         <div className="bg-white rounded-2xl shadow-lg border border-sage/20 p-6 md:p-8">
-          {/* Demo Notice */}
-          <div className="bg-gold/10 border border-gold/20 rounded-xl p-3 mb-5 flex items-start gap-2">
-            <Info className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-text-main/70 leading-relaxed">
-              {isHi 
-                ? 'डेमो UI — डेटा केवल आपके ब्राउज़र में सहेजा जाता है। कोई वास्तविक बैकएंड नहीं।'
-                : 'Demo UI — Data is stored only in your browser. No real backend is connected.'}
-            </p>
+          {/* Demo Notice — prominent and honest */}
+          <div role="status" className="bg-gold/10 border border-gold/20 rounded-xl p-3 mb-5 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" aria-hidden="true" />
+            <div>
+              <p className="text-xs font-semibold text-gold mb-0.5">
+                {isHi ? 'डेमो-केवल — सुरक्षित नहीं' : 'Demo-only — NOT secure'}
+              </p>
+              <p className="text-xs text-text-main/70 leading-relaxed">
+                {isHi 
+                  ? 'यह UI-मात्र डेमो है। कोई वास्तविक बैकएंड या प्रमाणीकरण सेवा नहीं। डेटा केवल आपके ब्राउज़र में सहेजा जाता है — उत्पादन के लिए उपयुक्त नहीं।'
+                  : 'This is a UI-only demo. No real backend or authentication service. Data is stored only in your browser — not suitable for production.'}
+              </p>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
