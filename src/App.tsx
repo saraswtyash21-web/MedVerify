@@ -4,16 +4,19 @@ import { generateReport, formatOutcome, VerificationReport, VerificationInput } 
 import { SAFETY_DISCLAIMER, SHORT_DISCLAIMER } from './utils/safety';
 import { generateResponse, getGreeting, getSuggestedQuestions, ChatResponse } from './utils/knowledge';
 import { exportReportAsPDF } from './utils/pdfExport';
+import { BarcodeScanResult } from './utils/barcode';
 import { sources } from './data/appData';
 import { ThemeProvider, AuthProvider, useTheme, useAuth } from './contexts';
 import { SignInPage, SignUpPage } from './components/AuthPages';
 import { Dashboard } from './components/Dashboard';
 import { VoiceAssistant } from './components/VoiceAssistant';
+import { BarcodeScanner } from './components/BarcodeScanner';
 import { 
   Shield, Camera, FileText, MessageCircle, AlertTriangle, 
   CheckCircle, XCircle, Upload, Clock, Search, Download,
   ChevronRight, Info, Eye, Edit3, Globe, ArrowLeft,
-  Heart, BookOpen, HelpCircle, RefreshCw, Sun, Moon, LogOut
+  Heart, BookOpen, HelpCircle, RefreshCw, Sun, Moon, LogOut,
+  ScanLine
 } from 'lucide-react';
 
 // Types
@@ -474,6 +477,8 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
   const [isEditing, setIsEditing] = useState(false);
   const [qualityAssessment, setQualityAssessment] = useState<{quality: string; issues: string[]; suggestions: string[]} | null>(null);
   const [report, setReport] = useState<VerificationReport | null>(null);
+  const [scanMode, setScanMode] = useState<'photo' | 'barcode'>('photo');
+  const [barcodeResult, setBarcodeResult] = useState<BarcodeScanResult | null>(null);
 
   const handleFileUpload = useCallback(async (file: File) => {
     // Validate file
@@ -628,13 +633,104 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
         </h2>
         <p className="text-text-main/60 text-sm">
           {language === 'hi' 
-            ? 'दवा पैकेजिंग की फोटो अपलोड करें या डेमो सैंपल चुनें।'
-            : 'Upload a photo of medicine packaging or choose a demo sample.'}
+            ? 'दवा पैकेजिंग की फोटो अपलोड करें, बारकोड स्कैन करें, या डेमो सैंपल चुनें।'
+            : 'Upload a photo, scan a barcode, or choose a demo sample.'}
         </p>
       </div>
 
-      {/* Upload Area */}
-      {!imagePreview && !fields && (
+      {/* Scan Mode Tabs */}
+      {!imagePreview && !fields && !barcodeResult && (
+        <div className="flex gap-2 mb-4 p-1 bg-sage/10 dark:bg-sage/5 rounded-xl" role="tablist">
+          <button
+            role="tab"
+            aria-selected={scanMode === 'photo'}
+            onClick={() => setScanMode('photo')}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              scanMode === 'photo'
+                ? 'bg-white dark:bg-[#1A211E] text-emerald-deep dark:text-sage-light shadow-sm'
+                : 'text-text-main/60 dark:text-[#D0D6CE] hover:text-charcoal dark:hover:text-[#E8ECE6]'
+            }`}
+          >
+            <Camera className="w-4 h-4" />
+            {language === 'hi' ? 'फोटो / OCR' : 'Photo / OCR'}
+          </button>
+          <button
+            role="tab"
+            aria-selected={scanMode === 'barcode'}
+            onClick={() => setScanMode('barcode')}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              scanMode === 'barcode'
+                ? 'bg-white dark:bg-[#1A211E] text-emerald-deep dark:text-sage-light shadow-sm'
+                : 'text-text-main/60 dark:text-[#D0D6CE] hover:text-charcoal dark:hover:text-[#E8ECE6]'
+            }`}
+          >
+            <ScanLine className="w-4 h-4" />
+            {language === 'hi' ? 'बारकोड' : 'Barcode'}
+          </button>
+        </div>
+      )}
+
+      {/* Barcode Scanner Mode */}
+      {scanMode === 'barcode' && !imagePreview && !fields && !barcodeResult && (
+        <div className="mb-6">
+          <BarcodeScanner
+            language={language}
+            onBarcodeScanned={(result) => {
+              setBarcodeResult(result);
+            }}
+          />
+        </div>
+      )}
+
+      {/* Barcode Result Display */}
+      {barcodeResult && (
+        <div className="bg-white dark:bg-[#1A211E] rounded-2xl border border-sage/20 p-5 mb-4 animate-fade-in">
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2">
+              <ScanLine className="w-5 h-5 text-emerald-deep" />
+              <h3 className="font-semibold text-charcoal dark:text-[#E8ECE6]">
+                {language === 'hi' ? 'बारकोड स्कैन परिणाम' : 'Barcode Scan Result'}
+              </h3>
+            </div>
+            <button
+              onClick={() => setBarcodeResult(null)}
+              className="text-sm text-text-main/50 hover:text-text-main/80 transition-colors"
+              aria-label={language === 'hi' ? 'बारकोड परिणाम हटाएं' : 'Clear barcode result'}
+            >
+              {language === 'hi' ? 'हटाएं' : 'Clear'}
+            </button>
+          </div>
+          
+          <div className="bg-ivory/50 dark:bg-emerald-deep/10 rounded-xl p-3 mb-3">
+            <p className="text-xs font-medium text-text-main/50 dark:text-[#D0D6CE] uppercase tracking-wider mb-1">
+              {language === 'hi' ? 'बारकोड नंबर' : 'Barcode Number'}
+            </p>
+            <code className="text-lg font-mono font-bold text-charcoal dark:text-[#E8ECE6]">
+              {barcodeResult.value}
+            </code>
+            <p className="text-xs text-text-main/50 dark:text-[#D0D6CE] mt-1">
+              {language === 'hi' ? 'प्रकार' : 'Format'}: {barcodeResult.formatLabel}
+            </p>
+          </div>
+
+          {/* Disclaimer */}
+          <div className="bg-gold/10 dark:bg-gold/5 border border-gold/20 rounded-xl p-3 flex items-start gap-2">
+            <Info className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-text-main/60 dark:text-[#D0D6CE]">
+              <span className="font-medium text-gold">
+                {language === 'hi' ? 'बारकोड स्कैन हुआ — उत्पाद विवरण सत्यापित नहीं।' : 'Barcode scanned — product details not verified.'}
+              </span>
+              {' '}
+              {language === 'hi'
+                ? 'बारकोड स्कैन करने से दवा की पहचान, प्रामाणिकता या सुरक्षा की पुष्टि नहीं होती है।'
+                : "Scanning a barcode does not confirm a medicine's identity, authenticity, or safety."}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Area - Only show in photo mode */}
+      {scanMode === 'photo' && !imagePreview && !fields && (
         <div className="space-y-6">
           <div
             onClick={() => fileInputRef.current?.click()}
@@ -655,7 +751,8 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
             <p className="text-sm text-text-main/50">JPG, JPEG, PNG • Max 10MB</p>
           </div>
 
-          {/* Demo Samples */}
+          {/* Demo Samples - Only in photo mode */}
+          {scanMode === 'photo' && (
           <div>
             <p className="text-sm font-medium text-text-main/60 mb-3 flex items-center gap-2">
               <Eye className="w-4 h-4" />
@@ -676,6 +773,7 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
               ))}
             </div>
           </div>
+          )}
         </div>
       )}
 
@@ -695,7 +793,7 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
       )}
 
       {/* Image Preview + OCR Results */}
-      {(imagePreview || fields) && !isProcessing && (
+      {(imagePreview || fields || barcodeResult) && !isProcessing && (
         <div className="space-y-4">
           {/* Image Preview */}
           {imagePreview && (
@@ -819,8 +917,11 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
                 setIsEditing(false);
                 setQualityAssessment(null);
                 setReport(null);
+                setBarcodeResult(null);
+                setScanMode('photo');
               }}
-              className="px-4 py-3 bg-white text-text-main/70 border border-sage/20 rounded-xl font-medium hover:bg-sage/5 transition-all"
+              className="px-4 py-3 bg-white dark:bg-[#1A211E] text-text-main/70 border border-sage/20 dark:border-sage/15 rounded-xl font-medium hover:bg-sage/5 transition-all"
+              aria-label={language === 'hi' ? 'सब कुछ रीसेट करें' : 'Reset all'}
             >
               <RefreshCw className="w-4 h-4" />
             </button>
