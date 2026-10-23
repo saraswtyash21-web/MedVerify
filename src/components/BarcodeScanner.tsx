@@ -20,8 +20,11 @@ import {
 } from '../utils/barcode';
 import {
   ScanLine, Camera, CameraOff, X, Copy, Check,
-  Upload, Info, AlertTriangle, RefreshCw, SwitchCamera
+  Upload, Info, AlertTriangle, RefreshCw, SwitchCamera,
+  Package, Search
 } from 'lucide-react';
+import { getProductCatalog, isCatalogConfigured } from '../lib/supabaseCatalog';
+import { ProductCatalogRecord } from '../lib/catalog';
 
 type Language = 'en' | 'hi';
 type ScanMode = 'idle' | 'camera' | 'image-upload';
@@ -44,6 +47,15 @@ export function BarcodeScanner({ language, onBarcodeScanned, onClose }: BarcodeS
   const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
   const [imageScanError, setImageScanError] = useState<string | null>(null);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  
+  // Catalog lookup state
+  const [catalogLookup, setCatalogLookup] = useState<{
+    loading: boolean;
+    found: boolean;
+    record?: ProductCatalogRecord;
+    message: string;
+    error?: boolean;
+  } | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
@@ -134,6 +146,9 @@ export function BarcodeScanner({ language, onBarcodeScanned, onClose }: BarcodeS
           onBarcodeScanned(barcodeResult);
           scanningRef.current = false;
           stopCamera();
+          
+          // Perform catalog lookup
+          performCatalogLookup(barcodeResult.value);
         }
       };
 
@@ -179,6 +194,9 @@ export function BarcodeScanner({ language, onBarcodeScanned, onClose }: BarcodeS
         setScanResult(result);
         onBarcodeScanned(result);
         setMode('idle');
+        
+        // Perform catalog lookup
+        performCatalogLookup(result.value);
       } else {
         setImageScanError(tr.noBarcode);
       }
@@ -211,6 +229,65 @@ export function BarcodeScanner({ language, onBarcodeScanned, onClose }: BarcodeS
     }
   }, [scanResult]);
 
+  // Perform catalog lookup for scanned barcode
+  const performCatalogLookup = useCallback(async (barcode: string) => {
+    if (!isCatalogConfigured()) {
+      setCatalogLookup({
+        loading: false,
+        found: false,
+        message: language === 'hi' 
+          ? 'उत्पाद कैटलॉग कॉन्फ़िगर नहीं है। कोई लुकअप नहीं किया गया।'
+          : 'Product catalog is not configured. No lookup performed.'
+      });
+      return;
+    }
+
+    setCatalogLookup({
+      loading: true,
+      found: false,
+      message: language === 'hi' ? 'कैटलॉग में खोज रहे हैं...' : 'Looking up in catalog...'
+    });
+
+    try {
+      const catalog = getProductCatalog();
+      const result = await catalog.lookup(barcode);
+
+      if (result.found && result.record) {
+        setCatalogLookup({
+          loading: false,
+          found: true,
+          record: result.record,
+          message: result.message
+        });
+      } else {
+        setCatalogLookup({
+          loading: false,
+          found: false,
+          message: language === 'hi'
+            ? 'उत्पाद वर्तमान कैटलॉग में नहीं मिला।'
+            : 'Product not found in the current catalog.'
+        });
+      }
+    } catch (err) {
+      console.error('Catalog lookup error:', err);
+      setCatalogLookup({
+        loading: false,
+        found: false,
+        message: language === 'hi'
+          ? 'अभी सत्यापित नहीं कर सकते। कृपया पुनः प्रयास करें।'
+          : 'Could not verify right now. Please try again.',
+        error: true
+      });
+    }
+  }, [language]);
+
+  // Retry catalog lookup
+  const handleRetryLookup = useCallback(() => {
+    if (scanResult) {
+      performCatalogLookup(scanResult.value);
+    }
+  }, [scanResult, performCatalogLookup]);
+
   // Close scanner
   const handleClose = useCallback(() => {
     stopCamera();
@@ -218,6 +295,7 @@ export function BarcodeScanner({ language, onBarcodeScanned, onClose }: BarcodeS
     setScanResult(null);
     setError(null);
     setImageScanError(null);
+    setCatalogLookup(null);
     onClose?.();
   }, [stopCamera, onClose]);
 
@@ -227,6 +305,7 @@ export function BarcodeScanner({ language, onBarcodeScanned, onClose }: BarcodeS
     setScanResult(null);
     setError(null);
     setImageScanError(null);
+    setCatalogLookup(null);
     setMode('idle');
   }, [stopCamera]);
 
@@ -464,6 +543,132 @@ export function BarcodeScanner({ language, onBarcodeScanned, onClose }: BarcodeS
                 </button>
               </div>
             </div>
+
+            {/* Catalog Lookup Result */}
+            {catalogLookup && (
+              <div className="animate-fade-in">
+                {catalogLookup.loading ? (
+                  <div className="bg-ivory/50 dark:bg-emerald-deep/10 border border-sage/20 dark:border-sage/15 rounded-xl p-4 flex items-center gap-3">
+                    <Search className="w-5 h-5 text-emerald-deep animate-pulse" />
+                    <p className="text-sm text-text-main/70 dark:text-[#D0D6CE]">
+                      {catalogLookup.message}
+                    </p>
+                  </div>
+                ) : catalogLookup.found && catalogLookup.record ? (
+                  <div className="bg-positive-light dark:bg-positive/10 border border-positive/20 rounded-xl p-4">
+                    <div className="flex items-start gap-3 mb-3">
+                      <Package className="w-5 h-5 text-positive flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="font-semibold text-positive mb-1">
+                          {language === 'hi' ? 'उत्पाद मिला' : 'Product Found'}
+                        </p>
+                        <p className="text-sm text-text-main/70 dark:text-[#D0D6CE]">
+                          {catalogLookup.message}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Product details */}
+                    <div className="space-y-2 ml-8">
+                      <div>
+                        <p className="text-xs font-medium text-text-main/50 dark:text-[#D0D6CE] uppercase tracking-wider">
+                          {language === 'hi' ? 'उत्पाद का नाम' : 'Product Name'}
+                        </p>
+                        <p className="text-sm font-medium text-charcoal dark:text-[#E8ECE6]">
+                          {catalogLookup.record.productName}
+                        </p>
+                      </div>
+                      
+                      {catalogLookup.record.activeIngredient && (
+                        <div>
+                          <p className="text-xs font-medium text-text-main/50 dark:text-[#D0D6CE] uppercase tracking-wider">
+                            {language === 'hi' ? 'सक्रिय तत्व' : 'Active Ingredient'}
+                          </p>
+                          <p className="text-sm text-charcoal dark:text-[#E8ECE6]">
+                            {catalogLookup.record.activeIngredient}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {catalogLookup.record.strength && (
+                        <div>
+                          <p className="text-xs font-medium text-text-main/50 dark:text-[#D0D6CE] uppercase tracking-wider">
+                            {language === 'hi' ? 'शक्ति' : 'Strength'}
+                          </p>
+                          <p className="text-sm text-charcoal dark:text-[#E8ECE6]">
+                            {catalogLookup.record.strength}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {catalogLookup.record.dosageForm && (
+                        <div>
+                          <p className="text-xs font-medium text-text-main/50 dark:text-[#D0D6CE] uppercase tracking-wider">
+                            {language === 'hi' ? 'खुराक रूप' : 'Dosage Form'}
+                          </p>
+                          <p className="text-sm text-charcoal dark:text-[#E8ECE6]">
+                            {catalogLookup.record.dosageForm}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {catalogLookup.record.manufacturer && (
+                        <div>
+                          <p className="text-xs font-medium text-text-main/50 dark:text-[#D0D6CE] uppercase tracking-wider">
+                            {language === 'hi' ? 'निर्माता' : 'Manufacturer'}
+                          </p>
+                          <p className="text-sm text-charcoal dark:text-[#E8ECE6]">
+                            {catalogLookup.record.manufacturer}
+                          </p>
+                        </div>
+                      )}
+                      
+                      <div>
+                        <p className="text-xs font-medium text-text-main/50 dark:text-[#D0D6CE] uppercase tracking-wider">
+                          {language === 'hi' ? 'स्रोत' : 'Source'}
+                        </p>
+                        <p className="text-xs text-text-main/60 dark:text-[#D0D6CE]">
+                          {catalogLookup.record.source}
+                          {catalogLookup.record.lastVerified && (
+                            <span className="ml-2">
+                              ({language === 'hi' ? 'सत्यापित' : 'Verified'}: {new Date(catalogLookup.record.lastVerified).toLocaleDateString()})
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={`border rounded-xl p-4 flex items-start gap-3 ${
+                    catalogLookup.error 
+                      ? 'bg-warning-light dark:bg-warning/10 border-warning/20' 
+                      : 'bg-ivory/50 dark:bg-emerald-deep/10 border-sage/20 dark:border-sage/15'
+                  }`}>
+                    <Info className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                      catalogLookup.error ? 'text-warning' : 'text-text-main/50 dark:text-[#D0D6CE]'
+                    }`} />
+                    <div className="flex-1">
+                      <p className={`text-sm ${
+                        catalogLookup.error 
+                          ? 'text-warning' 
+                          : 'text-text-main/70 dark:text-[#D0D6CE]'
+                      }`}>
+                        {catalogLookup.message}
+                      </p>
+                      {catalogLookup.error && (
+                        <button
+                          onClick={handleRetryLookup}
+                          className="mt-2 text-xs text-emerald-deep dark:text-sage-light font-medium hover:underline flex items-center gap-1"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          {language === 'hi' ? 'पुनः प्रयास करें' : 'Retry'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Disclaimer */}
             <div className="bg-gold/10 dark:bg-gold/5 border border-gold/20 rounded-xl p-3 flex items-start gap-2">

@@ -7,5 +7,13 @@
       "source": "/(.*)",
       "destination": "/"
     }
-  ]
+  ],
+  "functions": {
+    "api/eka-medications.ts": {
+      "runtime": "@vercel/node@3.0.0"
+    },
+    "api/dailymed-search.ts": {
+      "runtime": "@vercel/node@3.0.0"
+    }
+  }
 }

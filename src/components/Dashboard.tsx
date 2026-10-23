@@ -201,7 +201,7 @@ export function Dashboard({ language, setCurrentPage, scanHistory, setCurrentRep
             <HardDrive className="w-5 h-5 text-gold mt-0.5 flex-shrink-0" />
             <div>
               <p className="text-sm font-medium text-charcoal">
-                {isHi ? 'अस्थायी स्टोरेज (डेमो मोड)' : 'Temporary Storage (Demo Mode)'}
+                {isHi ? 'अस्थायी स्टोरेज' : 'Session-only Storage'}
               </p>
               <p className="text-xs text-text-main/60 mt-0.5">
                 {isHi 

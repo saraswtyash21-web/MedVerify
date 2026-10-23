@@ -1,13 +1,12 @@
 // MedVerify Data Layer
 // 
-// IMPORTANT: This file contains NO real alert records.
-// All records here are clearly marked as DEMO data for UI demonstration only.
+// This file contains no alert records until a verified source is configured.
 // Real verification requires configuring a data source in src/config.ts.
 //
 // The `sources` array reflects what is actually loaded — see src/config.ts
 // for the authoritative configuration.
 
-import { config, getEnabledSources, hasAnyRealDataSource } from '../config';
+import { config, hasAnyRealDataSource } from '../config';
 
 export interface AlertRecord {
   id: string;
@@ -19,8 +18,6 @@ export interface AlertRecord {
   sourceUrl: string;
   publicationDate: string;
   reportingPeriod?: string;
-  // Marks whether this record comes from a real verified source or is synthetic demo data
-  isDemo: boolean;
 }
 
 export interface SourceInfo {
@@ -66,56 +63,10 @@ export const sources: SourceInfo[] = config.dataSources.map(s => ({
 // then set the corresponding source's `enabled: true` in src/config.ts.
 export const realAlertRecords: AlertRecord[] = [];
 
-// ============================================================================
-// DEMO DATA — clearly separated, never used in real verification
-// ============================================================================
-// These records exist ONLY for UI demonstration and testing.
-// They are NOT real CDSCO records. They are NOT used when verifying real scans
-// unless the application is explicitly in demo mode AND the user opts in.
-
-export const DEMO_ALERT_RECORDS: AlertRecord[] = [
-  {
-    id: 'demo-001',
-    productName: 'Paracetamol',
-    manufacturer: 'Demo Pharma Ltd',
-    batchNumber: 'DP2024001',
-    strength: '500mg',
-    reason: 'DEMO RECORD — Substandard dissolution test results (synthetic example for UI demonstration only)',
-    sourceUrl: 'https://cdscoonline.gov.in/CDSCO/viewPublicNSQDrug',
-    publicationDate: '2024-06-15',
-    reportingPeriod: 'Q2 2024',
-    isDemo: true
-  },
-  {
-    id: 'demo-002',
-    productName: 'Amoxicillin',
-    manufacturer: 'Sample Medicines Inc',
-    batchNumber: 'SM-AMX-2024-089',
-    strength: '250mg',
-    reason: 'DEMO RECORD — Potency below specification (synthetic example for UI demonstration only)',
-    sourceUrl: 'https://cdscoonline.gov.in/CDSCO/viewPublicNSQDrug',
-    publicationDate: '2024-07-20',
-    reportingPeriod: 'Q3 2024',
-    isDemo: true
-  },
-  {
-    id: 'demo-003',
-    productName: 'Metformin',
-    manufacturer: 'HealthCorp Pharmaceuticals',
-    batchNumber: 'HC-MET-500-B1234',
-    strength: '500mg',
-    reason: 'DEMO RECORD — Impurity levels above permitted limits (synthetic example for UI demonstration only)',
-    sourceUrl: 'https://cdscoonline.gov.in/CDSCO/viewPublicNSQDrug',
-    publicationDate: '2024-08-10',
-    reportingPeriod: 'Q3 2024',
-    isDemo: true
-  }
-];
-
-// Helper: get records available for matching based on current mode
+// Helper: get records available for matching from configured verified sources.
 export function getRecordsForMatching(): {
   records: AlertRecord[];
-  source: 'real' | 'demo' | 'none';
+  source: 'real' | 'none';
   hasRealData: boolean;
 } {
   const hasReal = hasAnyRealDataSource();
@@ -124,7 +75,7 @@ export function getRecordsForMatching(): {
     return { records: realAlertRecords, source: 'real', hasRealData: true };
   }
   
-  // No real data — return empty. Demo records are NOT used for verification.
+  // No configured real data — return empty so the app reports that it cannot verify.
   return { records: [], source: 'none', hasRealData: false };
 }
 

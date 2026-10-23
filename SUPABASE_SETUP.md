@@ -74,7 +74,55 @@ SELECT relname, relrowsecurity FROM pg_class WHERE relname = 'scan_history';
 -- Should show: scan_history | t
 ```
 
-## Step 5: Configure Authentication
+## Step 5: Run the Product Catalog Migration
+
+The product catalog stores verified medicine records for barcode lookup.
+
+1. In Supabase dashboard, go to **SQL Editor**
+2. Click "New query"
+3. Copy the entire contents of `supabase/migrations/002_product_catalog.sql`
+4. Paste it into the SQL Editor
+5. Click "Run"
+
+### Verify the Product Catalog Migration
+
+```sql
+-- Check table exists
+SELECT tablename FROM pg_tables WHERE schemaname = 'public';
+-- Should show: scan_history, product_catalog
+
+-- Check RLS policies for product_catalog
+SELECT polname FROM pg_policies WHERE tablename = 'product_catalog';
+-- Should show: "Authenticated users can read product catalog"
+
+-- Check RLS is enabled
+SELECT relname, relrowsecurity FROM pg_class WHERE relname = 'product_catalog';
+-- Should show: product_catalog | t
+```
+
+### Import Verified Medicine Records
+
+The product catalog is empty by default. You must import verified records from official sources (GS1, FDA, etc.) before barcode lookup will work.
+
+**Quick Start:**
+1. Copy the template: `cp data/product_catalog_template.csv data/my_products.csv`
+2. Fill in your verified records (see template for format)
+3. Validate: `node scripts/validate-catalog-csv.js data/my_products.csv`
+4. Import via Supabase Dashboard → Table Editor → product_catalog → Import
+
+**Detailed Guide:** See [docs/IMPORTING_VERIFIED_RECORDS.md](docs/IMPORTING_VERIFIED_RECORDS.md) for:
+- How to verify data sources
+- CSV format and validation
+- Import procedures
+- Security and compliance requirements
+
+⚠️ **Important:** 
+- Only import records from **verified, official sources** (GS1, FDA, national regulatory bodies)
+- Never import fake, sample, or unverified data
+- A barcode lookup does NOT prove medicine authenticity or safety
+- The catalog is read-only for app users (RLS enforced)
+
+## Step 6: Configure Authentication
 
 1. In Supabase dashboard, go to **Authentication** → **Providers**
 2. Ensure **Email** provider is enabled (it is by default)
@@ -91,7 +139,7 @@ By default, Supabase requires email confirmation. To disable:
 
 ⚠️ **Note**: Disabling email confirmation is less secure but provides a smoother user experience for development/testing.
 
-## Step 6: Test the Setup
+## Step 7: Test the Setup
 
 1. Start the development server:
    ```bash
@@ -110,7 +158,7 @@ By default, Supabase requires email confirmation. To disable:
    - Refresh the page
    - Your scan history should persist
 
-## Step 7: Verify Data Persistence
+## Step 8: Verify Data Persistence
 
 1. In Supabase dashboard, go to **Table Editor**
 2. Click on `scan_history` table
@@ -118,6 +166,13 @@ By default, Supabase requires email confirmation. To disable:
    - `user_id`: Your user's UUID
    - `product_name`, `outcome`, etc.
    - `report_json`: Full verification report as JSON
+
+4. Click on `product_catalog` table
+5. If you've imported records, you should see:
+   - `barcode`: Unique product barcode
+   - `product_name`: Medicine name
+   - `source`: Data source (e.g., "GS1", "FDA")
+   - Other product details (active ingredient, strength, etc.)
 
 ## Troubleshooting
 

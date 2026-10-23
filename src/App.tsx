@@ -6,23 +6,26 @@ import { generateResponse, getGreeting, getSuggestedQuestions, ChatResponse } fr
 import { exportReportAsPDF } from './utils/pdfExport';
 import { BarcodeScanResult } from './utils/barcode';
 import { sources } from './data/appData';
-import { isDemoMode, hasAnyRealDataSource, config } from './config';
+import { hasAnyRealDataSource } from './config';
 import { saveScanToHistory, loadScanHistory, isPersistentStorageAvailable, ScanHistoryEntry } from './lib/scanHistory';
+import { matchWHOAlert, WHOAlertMatch } from './data/whoAlerts';
 import { ThemeProvider, AuthProvider, useTheme, useAuth } from './contexts';
 import { SignInPage, SignUpPage } from './components/AuthPages';
 import { Dashboard } from './components/Dashboard';
 import { VoiceAssistant } from './components/VoiceAssistant';
 import { BarcodeScanner } from './components/BarcodeScanner';
+import { WHOAlerts } from './components/WHOAlerts';
+import { DoctorInfo } from './components/DoctorInfo';
 import { 
   Shield, Camera, FileText, MessageCircle, AlertTriangle, 
   CheckCircle, XCircle, Upload, Clock, Search, Download,
   ChevronRight, Info, Eye, Edit3, Globe, ArrowLeft,
   Heart, BookOpen, HelpCircle, RefreshCw, Sun, Moon, LogOut,
-  ScanLine
+  ScanLine, Stethoscope
 } from 'lucide-react';
 
 // Types
-type Page = 'home' | 'scan' | 'report' | 'assistant' | 'safety' | 'dashboard';
+type Page = 'home' | 'scan' | 'report' | 'assistant' | 'safety' | 'dashboard' | 'doctorInfo';
 type Language = 'en' | 'hi';
 type AuthPage = 'signin' | 'signup';
 
@@ -37,7 +40,6 @@ const t = {
     assistant: 'Health Assistant',
     safety: 'Safety Guide',
     uploadImage: 'Upload Medicine Image',
-    orChooseDemo: 'Or choose a demo sample',
     processing: 'Processing...',
     extracting: 'Extracting text from image...',
     editFields: 'Review & Edit Extracted Fields',
@@ -66,7 +68,6 @@ const t = {
     assistant: 'स्वास्थ्य सहायक',
     safety: 'सुरक्षा गाइड',
     uploadImage: 'दवा की इमेज अपलोड करें',
-    orChooseDemo: 'या डेमो सैंपल चुनें',
     processing: 'प्रोसेसिंग...',
     extracting: 'इमेज से टेक्स्ट निकाल रहे हैं...',
     editFields: 'निकाले गए फ़ील्ड्स की समीक्षा और संपादन करें',
@@ -105,7 +106,7 @@ function AppContent() {
   const [scanHistory, setScanHistory] = useState<ScanHistoryEntry[]>([]);
   const [currentReport, setCurrentReport] = useState<VerificationReport | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, authMode } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   const tr = t[language];
@@ -153,18 +154,6 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-ivory font-sans transition-colors duration-300">
       {/* Navigation Header */}
-      {/* Demo Mode Banner */}
-      {isDemoMode() && (
-        <div className="bg-gold/90 text-charcoal text-xs py-1.5 px-4 text-center font-medium" role="status">
-          <span className="inline-flex items-center gap-1.5">
-            <span aria-hidden="true">⚠️</span>
-            {language === 'hi' 
-              ? 'डेमो मोड — कोई वास्तविक डेटा स्रोत कॉन्फ़िगर नहीं। सत्यापन उपलब्ध नहीं।'
-              : 'Demo mode — No real data source configured. Verification against live sources is unavailable.'}
-          </span>
-        </div>
-      )}
-
       <header className="bg-emerald-deep text-white sticky top-0 z-50 shadow-lg">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <button 
@@ -184,6 +173,7 @@ function AppContent() {
               { page: 'scan' as Page, label: tr.scan, icon: <Camera className="w-4 h-4" /> },
               { page: 'report' as Page, label: tr.report, icon: <FileText className="w-4 h-4" /> },
               { page: 'assistant' as Page, label: tr.assistant, icon: <MessageCircle className="w-4 h-4" /> },
+              { page: 'doctorInfo' as Page, label: language === 'hi' ? 'डॉक्टर जानकारी' : 'Doctor Info', icon: <Stethoscope className="w-4 h-4" /> },
               { page: 'safety' as Page, label: tr.safety, icon: <Shield className="w-4 h-4" /> },
             ].map(item => (
               <button
@@ -231,6 +221,7 @@ function AppContent() {
             { page: 'scan' as Page, label: tr.scan, icon: <Camera className="w-4 h-4" /> },
             { page: 'report' as Page, label: tr.report, icon: <FileText className="w-4 h-4" /> },
             { page: 'assistant' as Page, label: tr.assistant, icon: <MessageCircle className="w-4 h-4" /> },
+            { page: 'doctorInfo' as Page, label: language === 'hi' ? 'डॉक्टर' : 'Doctor', icon: <Stethoscope className="w-4 h-4" /> },
             { page: 'safety' as Page, label: tr.safety, icon: <Shield className="w-4 h-4" /> },
           ].map(item => (
             <button
@@ -307,6 +298,11 @@ function AppContent() {
             />
           </div>
         )}
+        {currentPage === 'doctorInfo' && (
+          <div className="animate-fade-in max-w-4xl mx-auto">
+            <DoctorInfo language={language} />
+          </div>
+        )}
         {currentPage === 'safety' && (
           <SafetyPage language={language} />
         )}
@@ -320,7 +316,8 @@ function AppContent() {
             <span id="safety-disclaimer">{tr.disclaimer}</span>
           </p>
           <p className="text-[10px] mt-2 text-sage/60">
-            DEMO APPLICATION — AI/ML Hackathon 2024 | Not for production medical use | Auth: UI-only demo
+            {'Informational tool — Not for clinical use'}
+            {' | Auth: '}{authMode === 'supabase' ? 'Supabase Auth' : 'Demo-only auth'}
           </p>
         </div>
       </footer>
@@ -526,6 +523,7 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
   const [ocrProgress, setOcrProgress] = useState<OcrProgress | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [fields, setFields] = useState<ExtractedFields | null>(null);
+  const [manuallyEditedFields, setManuallyEditedFields] = useState<Set<string>>(new Set());
   const [isEditing, setIsEditing] = useState(false);
   const [qualityAssessment, setQualityAssessment] = useState<{quality: string; issues: string[]; suggestions: string[]} | null>(null);
   const [report, setReport] = useState<VerificationReport | null>(null);
@@ -564,6 +562,7 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
       });
       setOcrResult(result);
       setFields(result.fields);
+      setManuallyEditedFields(new Set());
       setIsEditing(true);
 
       // Assess quality
@@ -572,7 +571,8 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
     } catch (err) {
       setOcrResult({
         success: false,
-        fields: { productName: '', strength: '', dosageForm: '', manufacturer: '', batchNumber: '', manufacturingDate: '', expiryDate: '', rawText: '' },
+        fields: { productName: '', activeIngredient: '', strength: '', dosageForm: '', manufacturer: '', batchNumber: '', manufacturingDate: '', expiryDate: '', rawText: '' },
+        fieldConfidences: [],
         confidence: 0,
         error: 'OCR processing failed',
         processingTime: 0
@@ -583,29 +583,7 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
     }
   }, [language]);
 
-  const handleDemoSelect = (demo: { name: string; fields: Partial<ExtractedFields> }) => {
-    const demoFields: ExtractedFields = {
-      productName: demo.fields.productName || '',
-      strength: demo.fields.strength || '',
-      dosageForm: demo.fields.dosageForm || '',
-      manufacturer: demo.fields.manufacturer || '',
-      batchNumber: demo.fields.batchNumber || '',
-      manufacturingDate: demo.fields.manufacturingDate || '',
-      expiryDate: demo.fields.expiryDate || '',
-      rawText: `[DEMO] ${demo.name} — NOT A REAL MEDICINE RECORD`
-    };
-    setFields(demoFields);
-    setIsEditing(true);
-    setImagePreview(null);
-    setImageFile(null);
-    setOcrResult({
-      success: true,
-      fields: demoFields,
-      confidence: 100,
-      processingTime: 0
-    });
-    setQualityAssessment({ quality: 'good', issues: [], suggestions: [] });
-  };
+  const [whoAlertMatch, setWhoAlertMatch] = useState<WHOAlertMatch | null>(null);
 
   const handleRunVerification = () => {
     if (!fields) return;
@@ -624,49 +602,16 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
     setReport(verificationReport);
     setCurrentReport(verificationReport);
     addScanToHistory(verificationReport, barcodeResult || undefined);
-  };
 
-  // Demo samples — clearly labeled, NOT real medicines.
-  // These exercise the OCR field-editing and expiry-checking UI only.
-  // They do NOT trigger real alert matches (no real data source is configured).
-  const demoSamples = [
-    {
-      name: 'Demo: Expired packaging (sample)',
-      fields: {
-        productName: 'Paracetamol',
-        strength: '500mg',
-        dosageForm: 'Tablet',
-        manufacturer: 'Sample Manufacturer Name',
-        batchNumber: 'SAMPLE-BATCH-001',
-        expiryDate: '03/2023',
-        manufacturingDate: '03/2021'
-      }
-    },
-    {
-      name: 'Demo: Future expiry (sample)',
-      fields: {
-        productName: 'Amoxicillin',
-        strength: '250mg',
-        dosageForm: 'Capsule',
-        manufacturer: 'Sample Manufacturer Name',
-        batchNumber: 'SAMPLE-BATCH-002',
-        expiryDate: '12/2027',
-        manufacturingDate: '01/2024'
-      }
-    },
-    {
-      name: 'Demo: Missing fields (sample)',
-      fields: {
-        productName: '',
-        strength: '',
-        dosageForm: '',
-        manufacturer: '',
-        batchNumber: '',
-        expiryDate: '',
-        manufacturingDate: ''
-      }
-    }
-  ];
+    // Run WHO alert matching
+    const whoMatch = matchWHOAlert({
+      productName: fields.productName,
+      genericName: fields.activeIngredient,
+      manufacturer: fields.manufacturer,
+      batchNumber: fields.batchNumber
+    });
+    setWhoAlertMatch(whoMatch);
+  };
 
   return (
     <div className="animate-fade-in max-w-4xl mx-auto">
@@ -677,7 +622,7 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
         <p className="text-text-main/60 text-sm">
           {language === 'hi' 
             ? 'दवा पैकेजिंग की फोटो अपलोड करें, बारकोड स्कैन करें, या डेमो सैंपल चुनें।'
-            : 'Upload a photo, scan a barcode, or choose a demo sample.'}
+              : 'Upload a clear photo of the medicine packaging or scan its barcode.'}
         </p>
       </div>
 
@@ -795,29 +740,6 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
             <p className="text-sm text-text-main/50">JPG, JPEG, PNG • Max 10MB</p>
           </div>
 
-          {/* Demo Samples - Only in photo mode */}
-          {scanMode === 'photo' && (
-          <div>
-            <p className="text-sm font-medium text-text-main/60 mb-3 flex items-center gap-2">
-              <Eye className="w-4 h-4" />
-              {tr.orChooseDemo}
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {demoSamples.map((demo, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleDemoSelect(demo)}
-                  className="text-left p-3 bg-white rounded-xl border border-sage/20 hover:border-gold/40 hover:shadow-sm transition-all"
-                >
-                  <p className="text-sm font-medium text-charcoal">{demo.name}</p>
-                  <p className="text-xs text-warning/80 mt-0.5">
-                    {language === 'hi' ? 'डेमो — UI परीक्षण के लिए, असली दवा नहीं' : 'DEMO — For UI testing only. Not a real medicine.'}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </div>
-          )}
         </div>
       )}
 
@@ -879,6 +801,97 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
             </div>
           )}
 
+          {/* Image Quality Warning */}
+          {ocrResult?.imageQuality && ocrResult.imageQuality.score < 70 && (
+            <div className="bg-warning-light border border-warning/30 rounded-2xl p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="font-semibold text-warning text-sm mb-2">
+                    {language === 'hi' ? 'इमेज गुणवत्ता चेतावनी' : 'Image Quality Warning'}
+                  </h4>
+                  <p className="text-xs text-text-main/70 mb-2">
+                    {language === 'hi' 
+                      ? 'इमेज की गुणवत्ता कम हो सकती है, जिससे OCR परिणाम प्रभावित हो सकते हैं।'
+                      : 'Image quality may be low, which could affect OCR accuracy.'}
+                  </p>
+                  {ocrResult.imageQuality.recommendations.length > 0 && (
+                    <ul className="text-xs text-text-main/60 space-y-1">
+                      {ocrResult.imageQuality.recommendations.map((rec, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="text-warning mt-0.5">•</span>
+                          <span>{rec}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <button
+                    onClick={() => {
+                      setImagePreview(null);
+                      setImageFile(null);
+                      setOcrResult(null);
+                      setFields(null);
+                      setManuallyEditedFields(new Set());
+                      setQualityAssessment(null);
+                    }}
+                    className="mt-3 text-xs text-emerald-deep font-medium hover:underline flex items-center gap-1"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    {language === 'hi' ? 'फोटो दोबारा लें' : 'Retake Photo'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Raw OCR Text (Debug/Transparency) */}
+          {ocrResult?.fields.rawText && (
+            <details className="bg-white rounded-2xl p-5 border border-sage/20">
+              <summary className="font-semibold text-charcoal flex items-center gap-2 cursor-pointer hover:text-emerald-deep transition-colors">
+                <Eye className="w-4 h-4 text-gold" />
+                {language === 'hi' ? 'कच्चा OCR टेक्स्ट देखें' : 'View Raw OCR Text'}
+                <span className="text-xs font-normal text-text-main/50 ml-2">
+                  ({language === 'hi' ? 'डीबगिंग के लिए' : 'For debugging'})
+                </span>
+              </summary>
+              <div className="mt-4">
+                <p className="text-xs text-text-main/60 mb-2">
+                  {language === 'hi' 
+                    ? 'यह वह कच्चा टेक्स्ट है जो OCR इंजन ने इमेज से पढ़ा है। यदि यह गलत या अव्यवस्थित है, तो इमेज की गुणवत्ता बढ़ाएं।'
+                    : 'This is the raw text that the OCR engine read from the image. If this is incorrect or garbled, improve the image quality.'}
+                </p>
+                <div className="bg-ivory/50 dark:bg-emerald-deep/10 rounded-lg p-3 border border-sage/10">
+                  <pre className="text-xs text-charcoal dark:text-[#E8ECE6] whitespace-pre-wrap break-words font-mono leading-relaxed">
+                    {ocrResult.fields.rawText}
+                  </pre>
+                </div>
+                <div className="mt-3 flex items-center gap-4 text-xs text-text-main/60">
+                  <span>
+                    {language === 'hi' ? 'OCR विश्वास:' : 'OCR Confidence:'} <strong>{ocrResult.confidence.toFixed(1)}%</strong>
+                  </span>
+                  <span>
+                    {language === 'hi' ? 'प्रोसेसिंग समय:' : 'Processing Time:'} <strong>{(ocrResult.processingTime / 1000).toFixed(2)}s</strong>
+                  </span>
+                </div>
+                {ocrResult.confidence < 60 && (
+                  <div className="mt-3 bg-warning-light dark:bg-warning/10 border border-warning/20 rounded-lg p-3 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                    <div className="text-xs text-text-main/70">
+                      <p className="font-semibold text-warning mb-1">
+                        {language === 'hi' ? 'कम OCR विश्वास' : 'Low OCR Confidence'}
+                      </p>
+                      <p>
+                        {language === 'hi'
+                          ? 'OCR इंजन को टेक्स्ट पढ़ने में कठिनाई हो रही है। बेहतर परिणामों के लिए: तेज इमेज लें, अच्छी रोशनी सुनिश्चित करें, और सुनिश्चित करें कि टेक्स्ट स्पष्ट और पढ़ने योग्य है।'
+                          : 'The OCR engine is having difficulty reading the text. For better results: take a sharper image, ensure good lighting, and make sure the text is clear and readable.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </details>
+          )}
+
           {/* Editable Fields */}
           {fields && (
             <div className="bg-white rounded-2xl p-5 border border-sage/20">
@@ -901,34 +914,77 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {[
                   { key: 'productName', label: language === 'hi' ? 'उत्पाद का नाम' : 'Product Name' },
+                  { key: 'activeIngredient', label: language === 'hi' ? 'सक्रिय तत्व' : 'Active Ingredient' },
                   { key: 'strength', label: language === 'hi' ? 'शक्ति' : 'Strength' },
                   { key: 'dosageForm', label: language === 'hi' ? 'खुराक रूप' : 'Dosage Form' },
                   { key: 'manufacturer', label: language === 'hi' ? 'निर्माता' : 'Manufacturer' },
                   { key: 'batchNumber', label: language === 'hi' ? 'बैच नंबर' : 'Batch Number' },
                   { key: 'manufacturingDate', label: language === 'hi' ? 'निर्माण तिथि' : 'Manufacturing Date' },
                   { key: 'expiryDate', label: language === 'hi' ? 'समाप्ति तिथि' : 'Expiry Date' },
-                ].map(field => (
-                  <div key={field.key}>
-                    <label className="text-xs font-medium text-text-main/60 mb-1 block">
-                      {field.label}
-                    </label>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={(fields as any)[field.key] || ''}
-                        onChange={(e) => setFields({ ...fields, [field.key]: e.target.value })}
-                        className="w-full px-3 py-2 border border-sage/30 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-deep/20 focus:border-emerald-deep/40"
-                        placeholder={language === 'hi' ? '(पहचाना नहीं गया)' : '(not detected)'}
-                      />
-                    ) : (
-                      <p className={`text-sm py-2 ${
-                        (fields as any)[field.key] ? 'text-charcoal' : 'text-text-main/30 italic'
-                      }`}>
-                        {(fields as any)[field.key] || (language === 'hi' ? '(पहचाना नहीं गया)' : '(not detected)')}
-                      </p>
-                    )}
-                  </div>
-                ))}
+                ].map(field => {
+                      const fieldConfidence = ocrResult?.fieldConfidences?.find(fc => fc.field === field.key);
+                  const wasManuallyEdited = manuallyEditedFields.has(field.key);
+                  const isUncertain = !wasManuallyEdited && (fieldConfidence?.confidence === 'uncertain' || fieldConfidence?.confidence === 'low');
+                  const fieldValue = (fields as any)[field.key];
+                  
+                  return (
+                    <div key={field.key} className={isUncertain && !fieldValue ? 'bg-warning-light/30 rounded-lg p-2' : ''}>
+                      <label className="text-xs font-medium text-text-main/60 mb-1 flex items-center gap-2">
+                        {field.label}
+                        {wasManuallyEdited ? (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-deep/10 text-emerald-deep">
+                            {fieldValue
+                              ? (language === 'hi' ? 'मैन्युअल दर्ज' : 'Manually entered')
+                              : (language === 'hi' ? 'मैन्युअल संपादित' : 'Manually edited')}
+                          </span>
+                        ) : fieldConfidence && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                            fieldConfidence.confidence === 'high' ? 'bg-positive/20 text-positive' :
+                            fieldConfidence.confidence === 'medium' ? 'bg-gold/20 text-gold' :
+                            fieldConfidence.confidence === 'low' ? 'bg-warning/20 text-warning' :
+                            'bg-text-main/10 text-text-main/50'
+                          }`}>
+                            {fieldConfidence.confidence === 'high' ? (language === 'hi' ? 'उच्च' : 'High') :
+                             fieldConfidence.confidence === 'medium' ? (language === 'hi' ? 'मध्यम' : 'Medium') :
+                             fieldConfidence.confidence === 'low' ? (language === 'hi' ? 'कम' : 'Low') :
+                             (language === 'hi' ? 'अनिश्चित' : 'Uncertain')}
+                          </span>
+                        )}
+                      </label>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={fieldValue || ''}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setFields({ ...fields, [field.key]: value });
+                            setManuallyEditedFields(previous => {
+                              const next = new Set(previous);
+                              next.add(field.key);
+                              return next;
+                            });
+                          }}
+                          className="w-full px-3 py-2 border border-sage/30 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-deep/20 focus:border-emerald-deep/40"
+                          placeholder={language === 'hi' ? '(पहचाना नहीं गया)' : '(not detected)'}
+                        />
+                      ) : (
+                        <div>
+                          <p className={`text-sm py-2 ${
+                            fieldValue ? 'text-charcoal' : 'text-text-main/30 italic'
+                          }`}>
+                            {fieldValue || (language === 'hi' ? '(पहचाना नहीं गया)' : '(not detected)')}
+                          </p>
+                          {isUncertain && fieldValue && fieldConfidence?.message && (
+                            <p className="text-xs text-warning mt-1 flex items-start gap-1">
+                              <AlertTriangle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                              <span>{fieldConfidence.message}</span>
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {isEditing && (
@@ -958,6 +1014,7 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
                 setImageFile(null);
                 setOcrResult(null);
                 setFields(null);
+                setManuallyEditedFields(new Set());
                 setIsEditing(false);
                 setQualityAssessment(null);
                 setReport(null);
@@ -974,6 +1031,13 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
           {/* Report Result */}
           {report && (
             <ReportInline report={report} language={language} setCurrentPage={setCurrentPage} />
+          )}
+
+          {/* WHO Alerts Check */}
+          {whoAlertMatch && (
+            <div className="mt-4">
+              <WHOAlerts match={whoAlertMatch} language={language} />
+            </div>
           )}
         </div>
       )}
@@ -1333,6 +1397,23 @@ function AssistantPage({ language, currentReport }: {
         </p>
       </div>
 
+      {/* Safety Notice */}
+      <div className="mb-4 bg-gold/10 border border-gold/20 rounded-xl p-4">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-gold flex-shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-semibold text-charcoal mb-1">
+              {language === 'hi' ? '⚠️ महत्वपूर्ण सुरक्षा सूचना' : '⚠️ Important Safety Notice'}
+            </p>
+            <p className="text-text-main/70 leading-relaxed">
+              {language === 'hi' 
+                ? 'यह सहायक सामान्य स्वास्थ्य जानकारी प्रदान करता है, लेकिन डॉक्टर नहीं है। यह निदान नहीं कर सकता, दवा prescribed नहीं कर सकता, या व्यक्तिगत चिकित्सा सलाह नहीं दे सकता। गंभीर या आपातकालीन स्थिति में, कृपया तुरंत चिकित्सा सहायता लें।'
+                : 'This assistant provides general health information but is not a doctor. It cannot diagnose conditions, prescribe medications, or provide personalized medical advice. For serious or emergency situations, please seek immediate medical care.'}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Chat Container */}
       <div className="bg-white rounded-2xl border border-sage/20 overflow-hidden flex flex-col" style={{ height: '60vh', minHeight: '400px' }}>
         {/* Messages */}
@@ -1346,14 +1427,14 @@ function AssistantPage({ language, currentReport }: {
                     ? 'bg-warning-light border border-warning/20 rounded-bl-sm'
                     : 'bg-ivory text-charcoal rounded-bl-sm'
               }`}>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                <p className="text-base leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                 {msg.sources && msg.sources.length > 0 && (
                   <div className="mt-2 pt-2 border-t border-sage/20">
-                    <p className="text-[10px] text-text-main/50 font-medium uppercase tracking-wider mb-1">
+                    <p className="text-xs text-text-main/50 font-medium uppercase tracking-wider mb-1">
                       {language === 'hi' ? 'स्रोत:' : 'Sources:'}
                     </p>
                     {msg.sources.map((src, j) => (
-                      <p key={j} className="text-xs text-emerald-deep">
+                      <p key={j} className="text-sm text-emerald-deep">
                         {src.url ? (
                           <a href={src.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
                             {src.title} ↗
@@ -1372,15 +1453,15 @@ function AssistantPage({ language, currentReport }: {
         {/* Suggested Questions */}
         {messages.length <= 1 && (
           <div className="px-4 pb-2">
-            <p className="text-xs text-text-main/50 mb-2">
-              {language === 'hi' ? 'सुझाए गए प्रश्न:' : 'Suggested questions:'}
+            <p className="text-sm text-text-main/60 mb-2 font-medium">
+              {language === 'hi' ? '💡 सुझाए गए प्रश्न:' : '💡 Suggested questions:'}
             </p>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-2">
               {suggestedQuestions.map((q, i) => (
                 <button
                   key={i}
                   onClick={() => handleSend(q)}
-                  className="text-xs px-3 py-1.5 bg-ivory border border-sage/20 rounded-full text-text-main/70 hover:border-emerald-deep/30 hover:text-emerald-deep transition-all"
+                  className="text-sm px-4 py-2 bg-ivory border border-sage/20 rounded-full text-text-main/70 hover:border-emerald-deep/30 hover:text-emerald-deep hover:bg-emerald-deep/5 transition-all"
                 >
                   {q}
                 </button>
@@ -1398,18 +1479,22 @@ function AssistantPage({ language, currentReport }: {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder={language === 'hi' ? 'अपना प्रश्न टाइप करें...' : 'Type your question...'}
-              className="flex-1 px-4 py-2.5 border border-sage/30 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-deep/20 focus:border-emerald-deep/40"
+              className="flex-1 px-4 py-3 border border-sage/30 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-emerald-deep/20 focus:border-emerald-deep/40"
+              aria-label={language === 'hi' ? 'प्रश्न टाइप करें' : 'Type your question'}
             />
             <button
               onClick={() => handleSend()}
               disabled={!input.trim()}
-              className="px-4 py-2.5 bg-emerald-deep text-white rounded-xl hover:bg-emerald-light transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-5 py-3 bg-emerald-deep text-white rounded-xl hover:bg-emerald-light transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label={language === 'hi' ? 'भेजें' : 'Send'}
             >
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>
-          <p className="text-[10px] text-text-main/40 mt-2 text-center">
-            {SHORT_DISCLAIMER}
+          <p className="text-xs text-text-main/50 mt-2 text-center">
+            {language === 'hi' 
+              ? '⚠️ यह सूचनात्मक है, चिकित्सा सलाह नहीं। गंभीर स्थिति में डॉक्टर से मिलें।'
+              : '⚠️ Informational only, not medical advice. See a doctor for serious concerns.'}
           </p>
         </div>
       </div>
@@ -1550,8 +1635,8 @@ function SafetyPage({ language }: { language: Language }) {
           </p>
           <p className="text-xs text-text-main/50 mt-3">
             {language === 'hi'
-              ? 'MedVerify एक डेमो/हैकाथॉन ऐप्लिकेशन है और इसे चिकित्सा उपयोग के लिए नहीं बनाया गया है।'
-              : 'MedVerify is a demo/hackathon application and is not intended for clinical medical use.'}
+              ? 'यह जानकारी के लिए बना टूल है, चिकित्सा निदान या उपचार के लिए नहीं। लाइव दवा-अलर्ट डेटा स्रोत अभी कनेक्ट नहीं हैं।'
+              : 'This is an informational tool, not for medical diagnosis or treatment. Live medicine-alert data sources are not connected.'}
           </p>
         </div>
       </div>

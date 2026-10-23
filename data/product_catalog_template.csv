@@ -1,0 +1,22 @@
+barcode,product_name,active_ingredient,strength,dosage_form,manufacturer,source,source_url,last_verified
+# Example (delete this line before import):
+# 8901234567890,Paracetamol 500mg Tablets,Paracetamol,500mg,Tablet,Verified Pharma Ltd,GS1 India,https://www.gs1.org/services/gs1-india,2024-01-15
+# 
+# REQUIRED FIELDS:
+# - barcode: Must be unique, preserve leading zeros (e.g., 0123456789012)
+# - product_name: Full product name as shown on packaging
+# - source: Where this record came from (e.g., "GS1 India", "FDA NDC", "Verified Import")
+#
+# OPTIONAL FIELDS:
+# - active_ingredient: Generic name of active ingredient
+# - strength: Dosage strength (e.g., "500mg", "10ml")
+# - dosage_form: Form type (e.g., "Tablet", "Capsule", "Syrup")
+# - manufacturer: Company name
+# - source_url: URL to official source (if available)
+# - last_verified: Date when record was verified (YYYY-MM-DD format)
+#
+# IMPORTANT:
+# - Only import records from VERIFIED, OFFICIAL sources
+# - Do NOT import fake, sample, or unverified data
+# - Each barcode must be unique (duplicates will be rejected)
+# - Validate this CSV with the validation script before importing

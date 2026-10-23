@@ -44,11 +44,27 @@ export interface AppConfig {
   };
 
   // Barcode product lookup
-  // No product database is connected. A barcode number alone does not identify,
-  // authenticate, or verify a medicine. To enable lookup, configure GS1 or similar.
+  // Uses a product catalog (Supabase table or local import) to look up barcode numbers.
+  // A barcode number alone does not identify, authenticate, or verify a medicine.
+  // Only returns results from explicitly configured, verified catalog records.
   barcodeLookup: {
     enabled: boolean;
-    provider: null | 'gs1' | 'openfoodfacts' | 'custom';
+    provider: null | 'supabase' | 'local' | 'gs1' | 'custom';
+    notes: string;
+  };
+
+  // WHO Medical Product Alerts
+  // Uses WHO official alerts for product safety verification
+  whoAlerts: {
+    enabled: boolean;
+    notes: string;
+  };
+
+  // Doctor Medicine Information
+  // Uses DailyMed (NIH/NLM) API for comprehensive drug information
+  doctorInfo: {
+    enabled: boolean;
+    provider: null | 'eka' | 'dailymed' | 'custom';
     notes: string;
   };
 }
@@ -62,36 +78,7 @@ export interface AppConfig {
 export const config: AppConfig = {
   mode: 'demo',
 
-  dataSources: [
-    {
-      id: 'cdsko-nsq',
-      name: 'CDSCO Not of Standard Quality (NSQ) Drugs',
-      publisher: 'Central Drugs Standard Control Organisation, India',
-      url: 'https://cdscoonline.gov.in/CDSCO/viewPublicNSQDrug',
-      description: 'Public records of drugs found not of standard quality by CDSCO.',
-      enabled: false, // NOT connected — no records loaded
-      recordCount: 0,
-      retrievalDate: null,
-      lastVerified: null,
-      limitations: 'CDSCO does not publish a downloadable dataset or public API. Records must be imported manually from the website or obtained via an official data-sharing agreement.',
-      requiresCredentials: false,
-      credentialNotes: 'No API key required, but records must be manually imported or scraped in compliance with CDSCO terms of use.'
-    },
-    {
-      id: 'cdsco-alerts',
-      name: 'CDSCO Drug Safety Alerts',
-      publisher: 'Central Drugs Standard Control Organisation, India',
-      url: 'https://www.cdsco.gov.in/opencms/opencms/en/Notifications/Alerts',
-      description: 'Official safety alerts and notifications issued by CDSCO.',
-      enabled: false, // NOT connected — no records loaded
-      recordCount: 0,
-      retrievalDate: null,
-      lastVerified: null,
-      limitations: 'Alerts are published as PDF/HTML notices, not as structured data. Manual import is required.',
-      requiresCredentials: false,
-      credentialNotes: 'No API key required, but records must be manually imported.'
-    }
-  ],
+  dataSources: [], // No safety-alert data sources configured
 
   auth: {
     provider: 'demo',
@@ -101,7 +88,18 @@ export const config: AppConfig = {
   barcodeLookup: {
     enabled: false,
     provider: null,
-    notes: 'No product database is connected. A scanned barcode number is displayed but not looked up. To enable, configure GS1 Data Hub, Open Food Facts, or a national drug database API.'
+    notes: 'No product catalog is connected. To enable barcode lookup, run the product_catalog migration in Supabase and set VITE_USE_SUPABASE_CATALOG=true in .env'
+  },
+
+  whoAlerts: {
+    enabled: false,
+    notes: 'WHO Medical Product Alerts not loaded. WHO does not provide a public API. Alerts must be manually imported from https://www.who.int/teams/regulation-prequalification/incidents-and-SF/full-list-of-who-medical-product-alerts'
+  },
+
+  doctorInfo: {
+    enabled: true,
+    provider: 'eka',
+    notes: 'Eka Care is the primary medication catalogue source for India. DailyMed is available as a supplementary U.S. label source.'
   }
 };
 

@@ -15,6 +15,167 @@ export interface ChatResponse {
   confidence: 'high' | 'medium' | 'low';
 }
 
+// Red flag symptoms that require urgent medical care
+// Based on WHO and CDC emergency warning signs
+const RED_FLAGS = {
+  en: [
+    'chest pain or pressure',
+    'difficulty breathing or shortness of breath',
+    'sudden severe headache',
+    'confusion or altered mental state',
+    'loss of consciousness',
+    'seizures',
+    'severe bleeding',
+    'sudden vision changes',
+    'numbness or weakness on one side',
+    'severe abdominal pain',
+    'high fever (above 103°F/39.4°C)',
+    'signs of severe allergic reaction (swelling, difficulty breathing)',
+    'suicidal thoughts or self-harm',
+    'overdose or poisoning'
+  ],
+  hi: [
+    'छाती में दर्द या दबाव',
+    'सांस लेने में कठिनाई',
+    'अचानक तेज सिरदर्द',
+    'भ्रम या मानसिक स्थिति में बदलाव',
+    'बेहोशी',
+    'दौरे',
+    'गंभीर रक्तस्राव',
+    'दृष्टि में अचानक बदलाव',
+    'एक तरफ सुन्नता या कमजोरी',
+    'तेज पेट दर्द',
+    'तेज बुखार (103°F/39.4°C से ऊपर)',
+    'गंभीर एलर्जिक प्रतिक्रिया के लक्षण',
+    'आत्महत्या के विचार या आत्म-हानि',
+    'ओवरडोज या जहर'
+  ]
+};
+
+// Check if query contains red flag symptoms
+export function hasRedFlags(query: string): { hasFlags: boolean; flags: string[] } {
+  const lowerQuery = query.toLowerCase();
+  const detectedFlags: string[] = [];
+  
+  for (const flag of RED_FLAGS.en) {
+    if (lowerQuery.includes(flag.toLowerCase())) {
+      detectedFlags.push(flag);
+    }
+  }
+  
+  return {
+    hasFlags: detectedFlags.length > 0,
+    flags: detectedFlags
+  };
+}
+
+// Check if query is about symptoms
+function isSymptomQuery(query: string): boolean {
+  const symptomKeywords = [
+    'symptom', 'feel', 'feeling', 'hurt', 'pain', 'ache', 'sick', 'ill',
+    'headache', 'fever', 'cough', 'cold', 'nausea', 'vomiting', 'diarrhea',
+    'lathargic', 'tired', 'fatigue', 'dizzy', 'lathargy',
+    'लक्षण', 'महसूस', 'दर्द', 'बीमार', 'बुखार', 'खांसी', 'सर्दी', 'जी मिचलाना',
+    'उल्टी', 'दस्त', 'थकान', 'चक्कर'
+  ];
+  
+  const lowerQuery = query.toLowerCase();
+  return symptomKeywords.some(keyword => lowerQuery.includes(keyword));
+}
+
+// Generate symptom guidance response
+function generateSymptomGuidance(query: string, language: 'en' | 'hi'): ChatResponse {
+  const lowerQuery = query.toLowerCase();
+  
+  // Determine symptom severity based on keywords
+  const severeSymptoms = ['severe', 'intense', 'unbearable', 'extreme', 'गंभीर', 'तीव्र', 'असहनीय'];
+  const moderateSymptoms = ['moderate', 'persistent', 'constant', 'मध्यम', 'लगातार'];
+  
+  const isSevere = severeSymptoms.some(s => lowerQuery.includes(s));
+  const isModerate = moderateSymptoms.some(s => lowerQuery.includes(s));
+  
+  let responseText = '';
+  
+  if (language === 'hi') {
+    responseText = `🩺 **लक्षण मार्गदर्शन**\n\n`;
+    
+    if (isSevere) {
+      responseText += `**गंभीर लक्षण:**\nआपके लक्षण गंभीर प्रतीत होते हैं।\n\n`;
+      responseText += `**कृपया डॉक्टर से संपर्क करें:**\n`;
+      responseText += `• जल्द से जल्द डॉक्टर से मिलें\n`;
+      responseText += `• यदि लक्षण बिगड़ रहे हैं, तो आपातकालीन सेवा को कॉल करें: 112\n\n`;
+    } else if (isModerate) {
+      responseText += `**मध्यम लक्षण:**\n\n`;
+      responseText += `**सामान्य देखभाल:**\n`;
+      responseText += `• आराम करें और पर्याप्त पानी पिएं\n`;
+      responseText += `• लक्षणों पर नज़र रखें\n`;
+      responseText += `• यदि 2-3 दिनों में सुधार न हो, तो डॉक्टर से मिलें\n\n`;
+    } else {
+      responseText += `**हल्के लक्षण:**\n\n`;
+      responseText += `**घरेलू देखभाल:**\n`;
+      responseText += `• पर्याप्त आराम करें\n`;
+      responseText += `• हाइड्रेटेड रहें (पानी, ओआरएस)\n`;
+      responseText += `• हल्का भोजन करें\n`;
+      responseText += `• लक्षणों की निगरानी करें\n\n`;
+    }
+    
+    responseText += `**डॉक्टर से कब मिलें:**\n`;
+    responseText += `• लक्षण 3 दिन से अधिक रहें\n`;
+    responseText += `• लक्षण बिगड़ रहे हैं\n`;
+    responseText += `• बुखार 108°F (38.3°C) से ऊपर है\n`;
+    responseText += `• सांस लेने में कठिनाई हो\n`;
+    responseText += `• गंभीर दर्द हो\n\n`;
+    
+    responseText += `⚠️ **महत्वपूर्ण:** मैं डॉक्टर नहीं हूं और दवा prescribed नहीं कर सकता। `;
+    responseText += `किसी भी दवा को लेने से पहले फार्मासिस्ट या डॉक्टर से परामर्श करें, `;
+    responseText += `विशेष रूप से यदि आप गर्भवती हैं, अन्य दवाएं ले रहे हैं, या कोई स्वास्थ्य स्थिति है।`;
+    
+  } else {
+    responseText = `🩺 **Symptom Guidance**\n\n`;
+    
+    if (isSevere) {
+      responseText += `**Severe Symptoms:**\nYour symptoms appear serious.\n\n`;
+      responseText += `**Please contact a doctor:**\n`;
+      responseText += `• See a doctor as soon as possible\n`;
+      responseText += `• If symptoms are worsening, call emergency: 112\n\n`;
+    } else if (isModerate) {
+      responseText += `**Moderate Symptoms:**\n\n`;
+      responseText += `**General Care:**\n`;
+      responseText += `• Rest and drink plenty of fluids\n`;
+      responseText += `• Monitor your symptoms\n`;
+      responseText += `• See a doctor if no improvement in 2-3 days\n\n`;
+    } else {
+      responseText += `**Mild Symptoms:**\n\n`;
+      responseText += `**Home Care:**\n`;
+      responseText += `• Get adequate rest\n`;
+      responseText += `• Stay hydrated (water, ORS)\n`;
+      responseText += `• Eat light meals\n`;
+      responseText += `• Monitor symptoms\n\n`;
+    }
+    
+    responseText += `**When to see a doctor:**\n`;
+    responseText += `• Symptoms last more than 3 days\n`;
+    responseText += `• Symptoms are getting worse\n`;
+    responseText += `• Fever above 103°F (39.4°C)\n`;
+    responseText += `• Difficulty breathing\n`;
+    responseText += `• Severe pain\n\n`;
+    
+    responseText += `⚠️ **Important:** I am not a doctor and cannot prescribe medication. `;
+    responseText += `Consult a pharmacist or doctor before taking any medicine, `;
+    responseText += `especially if you are pregnant, taking other medications, or have health conditions.`;
+  }
+  
+  return {
+    text: responseText,
+    sources: [
+      { title: 'General Health Guidance', url: 'https://www.who.int/health-topics' }
+    ],
+    isEmergency: false,
+    isRedirect: false,
+    confidence: 'medium'
+  };
+}
+
 // Find relevant knowledge entries for a query
 function findRelevantEntries(query: string, language: 'en' | 'hi'): KnowledgeEntry[] {
   const lowerQuery = query.toLowerCase();
@@ -67,6 +228,22 @@ export function generateResponse(
     };
   }
 
+  // Check for red flag symptoms
+  const redFlagCheck = hasRedFlags(query);
+  if (redFlagCheck.hasFlags) {
+    const urgentResponse = language === 'hi'
+      ? `🚨 **गंभीर लक्षण पहचाने गए**\n\nआपने इन लक्षणों का उल्लेख किया है:\n${redFlagCheck.flags.map(f => `• ${f}`).join('\n')}\n\n**कृपया तुरंत चिकित्सा सहायता लें।**\n\n• आपातकालीन सेवाओं को कॉल करें: 112\n• निकटतम आपातकालीन कक्ष में जाएं\n• समय बर्बाद न करें\n\nमैं व्यक्तिगत चिकित्सा सलाह नहीं दे सकता। ये लक्षण गंभीर स्थिति का संकेत हो सकते हैं।`
+      : `🚨 **Serious Symptoms Detected**\n\nYou mentioned these symptoms:\n${redFlagCheck.flags.map(f => `• ${f}`).join('\n')}\n\n**Please seek urgent medical care.**\n\n• Call emergency services: 112\n• Go to the nearest emergency room\n• Do not wait\n\nI cannot provide personalized medical advice. These symptoms may indicate a serious condition.`;
+    
+    return {
+      text: urgentResponse,
+      sources: [{ title: 'Emergency Services', url: 'tel:112' }],
+      isEmergency: true,
+      isRedirect: false,
+      confidence: 'high'
+    };
+  }
+
   // Check for personal medical advice
   if (isPersonalMedicalAdvice(query)) {
     const baseResponse = language === 'hi' ? PERSONAL_ADVICE_REDIRECT.hi : PERSONAL_ADVICE_REDIRECT.en;
@@ -77,6 +254,11 @@ export function generateResponse(
       isRedirect: true,
       confidence: 'high'
     };
+  }
+
+  // Check for symptom-related queries
+  if (isSymptomQuery(query)) {
+    return generateSymptomGuidance(query, language);
   }
 
   // Find relevant knowledge
@@ -139,15 +321,50 @@ export function generateResponse(
 // Get greeting message
 export function getGreeting(language: 'en' | 'hi' = 'en'): string {
   if (language === 'hi') {
-    return 'नमस्ते! मैं MedVerify स्वास्थ्य सहायक हूं। मैं दवा की जानकारी, पैकेजिंग लेबल, और स्कैन परिणामों के बारे में आपके प्रश्नों में मदद कर सकता हूं।\n\nमहत्वपूर्ण: मैं डॉक्टर नहीं हूं और व्यक्तिगत चिकित्सा सलाह नहीं दे सकता। आप क्या जानना चाहेंगे?';
+    return `🩺 **MedVerify स्वास्थ्य सहायक**
+
+नमस्ते! मैं आपकी दवाओं और सामान्य स्वास्थ्य जानकारी के बारे में मदद कर सकता हूं।
+
+**मैं क्या कर सकता हूं:**
+• दवा की जानकारी और पैकेजिंग लेबल समझाना
+• स्कैन परिणामों की व्याख्या करना
+• हल्के लक्षणों के बारे में सामान्य मार्गदर्शन देना
+• बताना कि कब डॉक्टर से मिलना चाहिए
+
+**मैं क्या नहीं कर सकता:**
+❌ बीमारी का निदान नहीं कर सकता
+❌ दवा prescribed नहीं कर सकता
+❌ व्यक्तिगत चिकित्सा सलाह नहीं दे सकता
+
+⚠️ **महत्वपूर्ण:** मैं डॉक्टर नहीं हूं। गंभीर या आपातकालीन स्थिति में, कृपया तुरंत चिकित्सा सहायता लें।
+
+आप क्या जानना चाहेंगे?`;
   }
-  return 'Hello! I\'m the MedVerify Health Assistant. I can help answer questions about medicine information, packaging labels, and scan results.\n\nImportant: I am not a doctor and cannot provide personalized medical advice. What would you like to know?';
+  return `🩺 **MedVerify Health Assistant**
+
+Hello! I can help you with medicine information and general health guidance.
+
+**What I can do:**
+• Explain medicine information and packaging labels
+• Help understand scan results
+• Provide general guidance for mild symptoms
+• Advise when to see a doctor
+
+**What I cannot do:**
+❌ Diagnose conditions
+❌ Prescribe medications
+❌ Provide personalized medical advice
+
+⚠️ **Important:** I am not a doctor. For serious or emergency situations, please seek immediate medical care.
+
+What would you like to know?`;
 }
 
 // Get suggested questions
 export function getSuggestedQuestions(language: 'en' | 'hi' = 'en'): string[] {
   if (language === 'hi') {
     return [
+      'मुझे हल्का सिरदर्द और बुखार है, क्या करूं?',
       'एक्सपायरी डेट क्यों महत्वपूर्ण है?',
       'बैच नंबर क्या होता है?',
       '"कोई अलर्ट नहीं" का क्या मतलब है?',
@@ -156,6 +373,7 @@ export function getSuggestedQuestions(language: 'en' | 'hi' = 'en'): string[] {
     ];
   }
   return [
+    'I have a mild headache and fever, what should I do?',
     'Why is the expiry date important?',
     'What is a batch number?',
     'What does "No Alert Found" mean?',
