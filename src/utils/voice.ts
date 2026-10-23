@@ -180,9 +180,9 @@ export function generateSpokenExplanation(
     if (outcome === 'ALERT_MATCH_FOUND') {
       return `सावधानी। ${name} के लिए एक गुणवत्ता अलर्ट मिला है। कृपया इस दवा का उपयोग न करें। तुरंत फार्मासिस्ट या डॉक्टर से संपर्क करें।`;
     } else if (outcome === 'NO_ALERT_FOUND') {
-      return `${name} के लिए जांचे गए स्रोतों में कोई अलर्ट नहीं मिला। ध्यान दें: इसका मतलब यह नहीं है कि दवा पूरी तरह सुरक्षित या असली है। यदि संदेह हो तो फार्मासिस्ट से पूछें।`;
+      return `${name} के लिए वर्तमान में कनेक्ट किए गए सत्यापित स्रोतों में कोई अलर्ट नहीं मिला। हालांकि, इसका मतलब यह नहीं है कि दवा सुरक्षित, असली या प्रमाणिक है। कनेक्टेड डेटाबेस व्यापक नहीं हो सकते। यदि कोई चिंता हो तो कृपया एक योग्य फार्मासिस्ट से परामर्श करें।`;
     } else {
-      return `${name} को पूरी तरह से सत्यापित नहीं किया जा सका। अधिक जानकारी के लिए कृपया स्पष्ट तस्वीर अपलोड करें या फार्मासिस्ट से संपर्क करें।`;
+      return `${name} को सत्यापित नहीं किया जा सका। ऐसा इसलिए हो सकता है क्योंकि कोई वास्तविक डेटा स्रोत कॉन्फ़िगर नहीं है, या निकाली गई जानकारी अपर्याप्त थी। कृपया एक स्पष्ट तस्वीर अपलोड करें या पेशेवर सत्यापन के लिए फार्मासिस्ट से परामर्श करें।`;
     }
   }
 
@@ -190,8 +190,8 @@ export function generateSpokenExplanation(
   if (outcome === 'ALERT_MATCH_FOUND') {
     return `Warning. A quality alert was found for ${name}. Please do not use this medicine. Contact a pharmacist or doctor immediately.`;
   } else if (outcome === 'NO_ALERT_FOUND') {
-    return `No alert was found for ${name} in the checked sources. Please note: this does not mean the medicine is completely safe or genuine. If you have concerns, consult a pharmacist.`;
+    return `No alert was found for ${name} in the verified sources currently connected. However, this does NOT mean the medicine is safe, genuine, or authentic. The connected databases may not be comprehensive. If you have any concerns, please consult a qualified pharmacist.`;
   } else {
-    return `${name} could not be fully verified. Please upload a clearer image or consult a pharmacist for more information.`;
+    return `${name} could not be verified. This may be because no real data source is configured, or the extracted information was insufficient. Please upload a clearer image or consult a pharmacist for professional verification.`;
   }
 }

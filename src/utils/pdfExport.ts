@@ -36,8 +36,23 @@ export function exportReportAsPDF(report: VerificationReport): void {
   doc.setTextColor(128, 128, 128);
   doc.text(`Report generated: ${new Date(report.timestamp).toLocaleString('en-IN')}`, 20, y);
   y += 4;
-  doc.text(`Data retrieval date: ${report.sourcesChecked.map(s => s.retrievalDate).join(', ')}`, 20, y);
-  y += 10;
+  const retrievalDates = report.sourcesChecked
+    .map(s => s.retrievalDate)
+    .filter((d): d is string => d !== null);
+  if (retrievalDates.length > 0) {
+    doc.text(`Data retrieval date: ${retrievalDates.join(', ')}`, 20, y);
+  } else {
+    doc.text('Data retrieval date: No live sources retrieved', 20, y);
+  }
+  y += 6;
+
+  // Data mode note — honest explanation of what was checked
+  doc.setFontSize(8);
+  doc.setTextColor(...gold as [number, number, number]);
+  const dataModeLines = doc.splitTextToSize(report.dataModeNote, pageWidth - 40);
+  doc.text(dataModeLines, 20, y);
+  y += dataModeLines.length * 3.5 + 4;
+  doc.setTextColor(128, 128, 128);
 
   // Outcome
   const outcomeInfo = formatOutcome(report.outcome);
@@ -166,30 +181,49 @@ export function exportReportAsPDF(report: VerificationReport): void {
   }
   y += 4;
 
-  // Sources
+  // Data Sources Status — honest about what was actually checked
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...emeraldDeep as [number, number, number]);
-  doc.text('Sources Checked', 20, y);
+  doc.text('Data Source Status', 20, y);
   y += 7;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.setTextColor(...textDark as [number, number, number]);
   
   for (const source of report.sourcesChecked) {
-    const srcLines = doc.splitTextToSize(
-      `• ${source.name} (${source.publisher}) — Retrieved: ${source.retrievalDate} — Records: ${source.recordCount}`,
-      pageWidth - 45
-    );
-    doc.text(srcLines, 25, y);
-    y += srcLines.length * 3.5 + 1;
+    const statusLabel = source.enabled ? '[CONNECTED]' : '[NOT CONNECTED]';
+    const statusColor = source.enabled ? positive : warning;
     
-    const limLines = doc.splitTextToSize(`  Limitations: ${source.limitations}`, pageWidth - 50);
+    // Source name with status
+    doc.setTextColor(...textDark as [number, number, number]);
+    doc.setFont('helvetica', 'bold');
+    const nameLine = `• ${source.name}`;
+    doc.text(nameLine, 25, y);
+    
+    doc.setTextColor(...statusColor as [number, number, number]);
+    doc.text(`  ${statusLabel}`, 25 + doc.getTextWidth(nameLine) + 2, y);
+    y += 4;
+    
+    // Publisher and details
+    doc.setFont('helvetica', 'normal');
     doc.setTextColor(128, 128, 128);
+    if (source.enabled) {
+      const detailLine = `  ${source.publisher} — Retrieved: ${source.retrievalDate || 'Unknown'} — Records: ${source.recordCount}`;
+      const detailLines = doc.splitTextToSize(detailLine, pageWidth - 50);
+      doc.text(detailLines, 30, y);
+      y += detailLines.length * 3.5;
+    } else {
+      const detailLine = `  ${source.publisher} — No records loaded. Verification unavailable from this source.`;
+      const detailLines = doc.splitTextToSize(detailLine, pageWidth - 50);
+      doc.text(detailLines, 30, y);
+      y += detailLines.length * 3.5;
+    }
+    
+    // Limitations
+    const limLines = doc.splitTextToSize(`  Limitations: ${source.limitations}`, pageWidth - 50);
     doc.text(limLines, 30, y);
     y += limLines.length * 3.5 + 3;
-    doc.setTextColor(...textDark as [number, number, number]);
   }
   y += 4;
 
