@@ -7,6 +7,7 @@ import { exportReportAsPDF } from './utils/pdfExport';
 import { BarcodeScanResult } from './utils/barcode';
 import { sources } from './data/appData';
 import { isDemoMode, hasAnyRealDataSource, config } from './config';
+import { saveScanToHistory, loadScanHistory, isPersistentStorageAvailable, ScanHistoryEntry } from './lib/scanHistory';
 import { ThemeProvider, AuthProvider, useTheme, useAuth } from './contexts';
 import { SignInPage, SignUpPage } from './components/AuthPages';
 import { Dashboard } from './components/Dashboard';
@@ -24,14 +25,6 @@ import {
 type Page = 'home' | 'scan' | 'report' | 'assistant' | 'safety' | 'dashboard';
 type Language = 'en' | 'hi';
 type AuthPage = 'signin' | 'signup';
-
-interface ScanHistory {
-  id: string;
-  timestamp: string;
-  productName: string;
-  outcome: string;
-  report: VerificationReport;
-}
 
 // Translations
 const t = {
@@ -109,22 +102,39 @@ function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [language, setLanguage] = useState<Language>('en');
   const [authPage, setAuthPage] = useState<AuthPage>('signin');
-  const [scanHistory, setScanHistory] = useState<ScanHistory[]>([]);
+  const [scanHistory, setScanHistory] = useState<ScanHistoryEntry[]>([]);
   const [currentReport, setCurrentReport] = useState<VerificationReport | null>(null);
-  const { isAuthenticated } = useAuth();
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const { isAuthenticated, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   const tr = t[language];
 
-  const addScanToHistory = (report: VerificationReport) => {
-    const entry: ScanHistory = {
-      id: report.id,
-      timestamp: report.timestamp,
-      productName: report.input.productName || 'Unknown',
-      outcome: report.outcome,
-      report
-    };
-    setScanHistory(prev => [entry, ...prev].slice(0, 10));
+  // Load scan history when user authenticates
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadHistory();
+    } else {
+      setScanHistory([]);
+    }
+  }, [isAuthenticated, user?.id]);
+
+  const loadHistory = async () => {
+    setHistoryLoading(true);
+    const history = await loadScanHistory(50);
+    setScanHistory(history);
+    setHistoryLoading(false);
+  };
+
+  const addScanToHistory = async (report: VerificationReport, barcodeResult?: BarcodeScanResult) => {
+    const entry = await saveScanToHistory(
+      report,
+      barcodeResult?.value || null,
+      barcodeResult?.formatLabel || null
+    );
+    if (entry) {
+      setScanHistory(prev => [entry, ...prev].slice(0, 50));
+    }
   };
 
   // If not authenticated, show auth pages
@@ -323,7 +333,7 @@ function AppContent() {
 function HomePage({ language, setCurrentPage, scanHistory, setCurrentReport }: {
   language: Language;
   setCurrentPage: (page: Page) => void;
-  scanHistory: ScanHistory[];
+  scanHistory: ScanHistoryEntry[];
   setCurrentReport: (report: VerificationReport | null) => void;
 }) {
   const tr = t[language];
@@ -506,7 +516,7 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
   language: Language;
   setCurrentPage: (page: Page) => void;
   setCurrentReport: (report: VerificationReport) => void;
-  addScanToHistory: (report: VerificationReport) => void;
+  addScanToHistory: (report: VerificationReport, barcodeResult?: BarcodeScanResult) => void;
 }) {
   const tr = t[language];
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -613,7 +623,7 @@ function ScanPage({ language, setCurrentPage, setCurrentReport, addScanToHistory
     const verificationReport = generateReport(input);
     setReport(verificationReport);
     setCurrentReport(verificationReport);
-    addScanToHistory(verificationReport);
+    addScanToHistory(verificationReport, barcodeResult || undefined);
   };
 
   // Demo samples — clearly labeled, NOT real medicines.

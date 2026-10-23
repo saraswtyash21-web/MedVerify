@@ -3,9 +3,10 @@
 
 import { useAuth } from '../contexts';
 import { VerificationReport, formatOutcome } from '../utils/verification';
+import { isPersistentStorageAvailable } from '../lib/scanHistory';
 import { 
   Shield, Camera, MessageCircle, Clock, User, LogOut, 
-  ChevronRight, Search, Heart, FileText
+  ChevronRight, Search, Heart, FileText, Database, HardDrive
 } from 'lucide-react';
 
 type Language = 'en' | 'hi';
@@ -179,8 +180,41 @@ export function Dashboard({ language, setCurrentPage, scanHistory, setCurrentRep
         )}
       </div>
 
+      {/* Storage Status */}
+      <div className="mt-6 bg-white rounded-2xl border border-sage/20 p-4 flex items-start gap-3">
+        {isPersistentStorageAvailable() ? (
+          <>
+            <Database className="w-5 h-5 text-positive mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-charcoal">
+                {isHi ? 'पर्सिस्टेंट स्टोरेज सक्रिय' : 'Persistent Storage Active'}
+              </p>
+              <p className="text-xs text-text-main/60 mt-0.5">
+                {isHi 
+                  ? 'आपके स्कैन Supabase डेटाबेस में सुरक्षित रूप से सहेजे जाते हैं और लॉग आउट करने पर भी उपलब्ध रहते हैं।'
+                  : 'Your scans are securely saved in the Supabase database and persist across sessions.'}
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <HardDrive className="w-5 h-5 text-gold mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-charcoal">
+                {isHi ? 'अस्थायी स्टोरेज (डेमो मोड)' : 'Temporary Storage (Demo Mode)'}
+              </p>
+              <p className="text-xs text-text-main/60 mt-0.5">
+                {isHi 
+                  ? 'स्कैन केवल इस सत्र के लिए सहेजे जाते हैं। पृष्ठ रीफ्रेश करने पर डेटा खो जाएगा। पर्सिस्टेंट स्टोरेज के लिए Supabase कॉन्फ़िगर करें।'
+                  : 'Scans are saved for this session only. Data will be lost on page refresh. Configure Supabase for persistent storage.'}
+              </p>
+            </div>
+          </>
+        )}
+      </div>
+
       {/* Safety Reminder */}
-      <div className="mt-6 bg-gold/5 border border-gold/20 rounded-2xl p-4 flex items-start gap-3">
+      <div className="mt-4 bg-gold/5 border border-gold/20 rounded-2xl p-4 flex items-start gap-3">
         <Heart className="w-5 h-5 text-gold mt-0.5 flex-shrink-0" />
         <p className="text-sm text-text-main/70 leading-relaxed">
           {isHi 

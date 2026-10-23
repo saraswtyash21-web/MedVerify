@@ -15,12 +15,14 @@ interface AuthPagesProps {
 }
 
 export function SignInPage({ language, onSwitchPage }: AuthPagesProps) {
-  const { signIn, isLoading } = useAuth();
+  const { signIn, isLoading, authMode, isConfigured, configError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  
+  const isHi = language === 'hi';
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -34,8 +36,6 @@ export function SignInPage({ language, onSwitchPage }: AuthPagesProps) {
       setError(result.error || (language === 'hi' ? 'साइन इन विफल रहा' : 'Sign in failed'));
     }
   };
-
-  const isHi = language === 'hi';
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-ivory">
@@ -53,20 +53,58 @@ export function SignInPage({ language, onSwitchPage }: AuthPagesProps) {
 
         {/* Form Card */}
         <div className="bg-white rounded-2xl shadow-lg border border-sage/20 p-6 md:p-8">
-          {/* Demo Notice — prominent and honest */}
-          <div role="status" className="bg-gold/10 border border-gold/20 rounded-xl p-3 mb-5 flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" aria-hidden="true" />
-            <div>
-              <p className="text-xs font-semibold text-gold mb-0.5">
-                {isHi ? 'डेमो-केवल लॉगिन — सुरक्षित नहीं' : 'Demo-only login — NOT secure'}
-              </p>
-              <p className="text-xs text-text-main/70 leading-relaxed">
-                {isHi 
-                  ? 'यह UI-मात्र डेमो है। कोई वास्तविक प्रमाणीकरण सेवा कॉन्फ़िगर नहीं है। पासवर्ड सहेजे नहीं जाते — केवल ईमेल ट्रैक किया जाता है। किसी भी मान्य ईमेल और 6+ अक्षरों के पासवर्ड से प्रवेश करें।'
-                  : 'This is a UI-only demo. No real authentication service is configured. Passwords are not stored — only the email address is tracked. Sign in with any valid email and password (6+ characters).'}
-              </p>
+          {/* Supabase Setup Error */}
+          {authMode === 'supabase' && !isConfigured && configError && (
+            <div role="alert" className="bg-warning-light border border-warning/20 rounded-xl p-3 mb-5 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-warning mt-0.5 flex-shrink-0" aria-hidden="true" />
+              <div>
+                <p className="text-xs font-semibold text-warning mb-0.5">
+                  {isHi ? 'Supabase कॉन्फ़िगरेशन त्रुटि' : 'Supabase Configuration Error'}
+                </p>
+                <p className="text-xs text-text-main/70 leading-relaxed">
+                  {configError}
+                </p>
+                <p className="text-xs text-text-main/60 mt-2 leading-relaxed">
+                  {isHi 
+                    ? 'कृपया .env फ़ाइल में VITE_SUPABASE_URL और VITE_SUPABASE_ANON_KEY सेट करें, या VITE_AUTH_MODE=demo पर स्विच करें।'
+                    : 'Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file, or switch to VITE_AUTH_MODE=demo.'}
+                </p>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Auth Mode Notice */}
+          {authMode === 'demo' && (
+            <div role="status" className="bg-gold/10 border border-gold/20 rounded-xl p-3 mb-5 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" aria-hidden="true" />
+              <div>
+                <p className="text-xs font-semibold text-gold mb-0.5">
+                  {isHi ? 'डेमो-केवल लॉगिन — सुरक्षित नहीं' : 'Demo-only login — NOT secure'}
+                </p>
+                <p className="text-xs text-text-main/70 leading-relaxed">
+                  {isHi 
+                    ? 'यह UI-मात्र डेमो है। कोई वास्तविक प्रमाणीकरण सेवा कॉन्फ़िगर नहीं है। पासवर्ड सहेजे नहीं जाते — केवल ईमेल ट्रैक किया जाता है। किसी भी मान्य ईमेल और 6+ अक्षरों के पासवर्ड से प्रवेश करें।'
+                    : 'This is a UI-only demo. No real authentication service is configured. Passwords are not stored — only the email address is tracked. Sign in with any valid email and password (6+ characters).'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {authMode === 'supabase' && isConfigured && (
+            <div role="status" className="bg-positive-light border border-positive/20 rounded-xl p-3 mb-5 flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 text-positive mt-0.5 flex-shrink-0" aria-hidden="true" />
+              <div>
+                <p className="text-xs font-semibold text-positive mb-0.5">
+                  {isHi ? 'Supabase Auth सक्रिय' : 'Supabase Auth Active'}
+                </p>
+                <p className="text-xs text-text-main/70 leading-relaxed">
+                  {isHi 
+                    ? 'सुरक्षित प्रमाणीकरण Supabase Auth द्वारा संचालित है। आपका डेटा एन्क्रिप्टेड और सुरक्षित है।'
+                    : 'Secure authentication powered by Supabase Auth. Your data is encrypted and secure.'}
+                </p>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             {/* Email */}
@@ -181,7 +219,7 @@ export function SignInPage({ language, onSwitchPage }: AuthPagesProps) {
 }
 
 export function SignUpPage({ language, onSwitchPage }: AuthPagesProps) {
-  const { signUp, isLoading } = useAuth();
+  const { signUp, isLoading, authMode, isConfigured, configError } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -226,20 +264,53 @@ export function SignUpPage({ language, onSwitchPage }: AuthPagesProps) {
 
         {/* Form Card */}
         <div className="bg-white rounded-2xl shadow-lg border border-sage/20 p-6 md:p-8">
-          {/* Demo Notice — prominent and honest */}
-          <div role="status" className="bg-gold/10 border border-gold/20 rounded-xl p-3 mb-5 flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" aria-hidden="true" />
-            <div>
-              <p className="text-xs font-semibold text-gold mb-0.5">
-                {isHi ? 'डेमो-केवल — सुरक्षित नहीं' : 'Demo-only — NOT secure'}
-              </p>
-              <p className="text-xs text-text-main/70 leading-relaxed">
-                {isHi 
-                  ? 'यह UI-मात्र डेमो है। कोई वास्तविक बैकएंड नहीं। पासवर्ड सहेजे नहीं जाते — केवल ईमेल ट्रैक किया जाता है। उत्पादन के लिए उपयुक्त नहीं।'
-                  : 'This is a UI-only demo. No real backend. Passwords are not stored — only the email address is tracked. Not suitable for production.'}
-              </p>
+          {/* Supabase Setup Error */}
+          {authMode === 'supabase' && !isConfigured && configError && (
+            <div role="alert" className="bg-warning-light border border-warning/20 rounded-xl p-3 mb-5 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-warning mt-0.5 flex-shrink-0" aria-hidden="true" />
+              <div>
+                <p className="text-xs font-semibold text-warning mb-0.5">
+                  {isHi ? 'Supabase कॉन्फ़िगरेशन त्रुटि' : 'Supabase Configuration Error'}
+                </p>
+                <p className="text-xs text-text-main/70 leading-relaxed">
+                  {configError}
+                </p>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Auth Mode Notice */}
+          {authMode === 'demo' && (
+            <div role="status" className="bg-gold/10 border border-gold/20 rounded-xl p-3 mb-5 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" aria-hidden="true" />
+              <div>
+                <p className="text-xs font-semibold text-gold mb-0.5">
+                  {isHi ? 'डेमो-केवल — सुरक्षित नहीं' : 'Demo-only — NOT secure'}
+                </p>
+                <p className="text-xs text-text-main/70 leading-relaxed">
+                  {isHi 
+                    ? 'यह UI-मात्र डेमो है। कोई वास्तविक बैकएंड नहीं। पासवर्ड सहेजे नहीं जाते — केवल ईमेल ट्रैक किया जाता है। उत्पादन के लिए उपयुक्त नहीं।'
+                    : 'This is a UI-only demo. No real backend. Passwords are not stored — only the email address is tracked. Not suitable for production.'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {authMode === 'supabase' && isConfigured && (
+            <div role="status" className="bg-positive-light border border-positive/20 rounded-xl p-3 mb-5 flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 text-positive mt-0.5 flex-shrink-0" aria-hidden="true" />
+              <div>
+                <p className="text-xs font-semibold text-positive mb-0.5">
+                  {isHi ? 'Supabase Auth सक्रिय' : 'Supabase Auth Active'}
+                </p>
+                <p className="text-xs text-text-main/70 leading-relaxed">
+                  {isHi 
+                    ? 'सुरक्षित प्रमाणीकरण Supabase Auth द्वारा संचालित है।'
+                    : 'Secure authentication powered by Supabase Auth.'}
+                </p>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             {/* Name */}
