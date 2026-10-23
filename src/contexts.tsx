@@ -116,13 +116,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // ⚠️ DEMO AUTH — passwords are NOT stored.
+  // Only the email address is tracked to avoid "already registered" errors.
+  // The password field exists for UI completeness but is discarded immediately.
+  // For production, replace this entire AuthProvider with a real identity service.
+
   const signIn = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
     
-    // Simulate network delay
+    // Simulate network delay for UX
     await new Promise(resolve => setTimeout(resolve, 800));
 
-    // Basic validation (UI-only, no real auth)
+    // Basic validation
     if (!email || !password) {
       setIsLoading(false);
       return { success: false, error: 'Please fill in all fields.' };
@@ -138,26 +143,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: 'Password must be at least 6 characters.' };
     }
 
-    // Check if user was previously registered in this demo
-    const registeredUsers = JSON.parse(localStorage.getItem('medverify-registered-users') || '[]');
-    const foundUser = registeredUsers.find((u: any) => u.email === email);
-    
-    if (foundUser) {
-      // Verify password (in a real app, this would be server-side)
-      if (foundUser.password !== password) {
-        setIsLoading(false);
-        return { success: false, error: 'Incorrect password. Please try again.' };
-      }
-      const userData = { name: foundUser.name, email: foundUser.email };
-      setUser(userData);
-      localStorage.setItem('medverify-user', JSON.stringify(userData));
-      setIsLoading(false);
-      return { success: true };
-    }
+    // Password is NOT stored or verified — it is discarded after validation.
+    // In a real app, credentials would be verified server-side.
 
-    // If no registered user found, allow sign-in with any valid credentials for demo
-    // In production, this would return an error
-    const userData = { name: email.split('@')[0], email };
+    // Look up previously registered email (name only, no password)
+    const registeredEmails: { name: string; email: string }[] = 
+      JSON.parse(localStorage.getItem('medverify-registered-emails') || '[]');
+    const foundUser = registeredEmails.find((u) => u.email === email);
+    
+    const userData = foundUser 
+      ? { name: foundUser.name, email: foundUser.email }
+      : { name: email.split('@')[0], email };
+    
     setUser(userData);
     localStorage.setItem('medverify-user', JSON.stringify(userData));
     setIsLoading(false);
@@ -188,16 +185,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: 'Password must be at least 6 characters.' };
     }
 
-    // Check if email already registered
-    const registeredUsers = JSON.parse(localStorage.getItem('medverify-registered-users') || '[]');
-    if (registeredUsers.find((u: any) => u.email === email)) {
+    // Password is NOT stored — it is discarded after validation.
+
+    // Track only the email (and display name) to prevent duplicate sign-ups
+    const registeredEmails: { name: string; email: string }[] = 
+      JSON.parse(localStorage.getItem('medverify-registered-emails') || '[]');
+    
+    if (registeredEmails.find((u) => u.email === email)) {
       setIsLoading(false);
       return { success: false, error: 'An account with this email already exists. Please sign in.' };
     }
 
-    // Store user (UI-only demo, NOT secure)
-    registeredUsers.push({ name, email, password });
-    localStorage.setItem('medverify-registered-users', JSON.stringify(registeredUsers));
+    // Store only name + email (NO password)
+    registeredEmails.push({ name, email });
+    localStorage.setItem('medverify-registered-emails', JSON.stringify(registeredEmails));
+    
+    // Clean up legacy plain-text password storage from earlier demo versions
+    localStorage.removeItem('medverify-registered-users');
     
     const userData = { name, email };
     setUser(userData);

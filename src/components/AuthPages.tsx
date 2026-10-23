@@ -62,8 +62,8 @@ export function SignInPage({ language, onSwitchPage }: AuthPagesProps) {
               </p>
               <p className="text-xs text-text-main/70 leading-relaxed">
                 {isHi 
-                  ? 'यह UI-मात्र डेमो है। कोई वास्तविक प्रमाणीकरण सेवा कॉन्फ़िगर नहीं है। पासवर्ड ब्राउज़र में सादे टेक्स्ट में सहेजे जाते हैं — उत्पादन के लिए उपयुक्त नहीं। किसी भी मान्य ईमेल और पासवर्ड (6+ अक्षर) से प्रवेश करें।'
-                  : 'This is a UI-only demo. No real authentication service is configured. Passwords are stored as plain text in your browser — not suitable for production. Sign in with any valid email and password (6+ characters).'}
+                  ? 'यह UI-मात्र डेमो है। कोई वास्तविक प्रमाणीकरण सेवा कॉन्फ़िगर नहीं है। पासवर्ड सहेजे नहीं जाते — केवल ईमेल ट्रैक किया जाता है। किसी भी मान्य ईमेल और 6+ अक्षरों के पासवर्ड से प्रवेश करें।'
+                  : 'This is a UI-only demo. No real authentication service is configured. Passwords are not stored — only the email address is tracked. Sign in with any valid email and password (6+ characters).'}
               </p>
             </div>
           </div>
@@ -235,8 +235,8 @@ export function SignUpPage({ language, onSwitchPage }: AuthPagesProps) {
               </p>
               <p className="text-xs text-text-main/70 leading-relaxed">
                 {isHi 
-                  ? 'यह UI-मात्र डेमो है। कोई वास्तविक बैकएंड या प्रमाणीकरण सेवा नहीं। डेटा केवल आपके ब्राउज़र में सहेजा जाता है — उत्पादन के लिए उपयुक्त नहीं।'
-                  : 'This is a UI-only demo. No real backend or authentication service. Data is stored only in your browser — not suitable for production.'}
+                  ? 'यह UI-मात्र डेमो है। कोई वास्तविक बैकएंड नहीं। पासवर्ड सहेजे नहीं जाते — केवल ईमेल ट्रैक किया जाता है। उत्पादन के लिए उपयुक्त नहीं।'
+                  : 'This is a UI-only demo. No real backend. Passwords are not stored — only the email address is tracked. Not suitable for production.'}
               </p>
             </div>
           </div>
