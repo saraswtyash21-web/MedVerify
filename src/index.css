@@ -1,1 +1,53 @@
 @import "tailwindcss";
+
+@theme {
+  --color-ivory: #F7F5EE;
+  --color-emerald-deep: #244C3A;
+  --color-emerald-light: #2D6B4F;
+  --color-sage: #A6B89A;
+  --color-sage-light: #C5D4BA;
+  --color-gold: #C5A15B;
+  --color-gold-light: #D4B87A;
+  --color-text-main: #202720;
+  --color-charcoal: #101614;
+  --color-positive: #40C9A2;
+  --color-warning: #E87570;
+  --color-warning-light: #FDE8E7;
+  --color-positive-light: #E0F7EF;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Playfair Display', serif;
+}
+
+body {
+  background-color: #F7F5EE;
+  color: #202720;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #A6B89A;
+  border-radius: 3px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
