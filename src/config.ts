@@ -61,10 +61,10 @@ export interface AppConfig {
   };
 
   // Doctor Medicine Information
-  // Uses DailyMed (NIH/NLM) API for comprehensive drug information
+  // India catalogue is primary; U.S. DailyMed labels remain an optional backup.
   doctorInfo: {
     enabled: boolean;
-    provider: null | 'eka' | 'dailymed' | 'custom';
+    provider: null | 'india-cdci' | 'dailymed' | 'custom';
     notes: string;
   };
 }
@@ -98,8 +98,8 @@ export const config: AppConfig = {
 
   doctorInfo: {
     enabled: true,
-    provider: 'eka',
-    notes: 'Eka Care is the primary medication catalogue source for India. DailyMed is available as a supplementary U.S. label source.'
+    provider: 'india-cdci',
+    notes: 'Primary: Indian medicine catalogue search via HealthPilot.ai, based on Common Drug Codes for India from NRCeS at C-DAC Pune. Backup: DailyMed U.S. drug labels. Neither source verifies medicine safety, authenticity, or India-specific alerts.'
   }
 };
 

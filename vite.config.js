@@ -1,14 +1,13 @@
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { searchEkaMedications } from "./server/ekaMedications.js";
+import { searchIndianMedicines } from "./server/indiaMedicineSearch.js";
 
-function ekaDevApi() {
+function indianMedicineDevApi() {
   return {
-    name: "eka-medications-dev-api",
+    name: "indian-medicine-search-dev-api",
     configureServer(server) {
-      const env = { ...process.env, ...loadEnv(server.config.mode, process.cwd(), "") };
-      server.middlewares.use("/api/eka-medications", async (request, response, next) => {
+      server.middlewares.use("/api/india-medicine-search", async (request, response, next) => {
         if (request.method !== "GET") {
           response.statusCode = 405;
           response.setHeader("Allow", "GET");
@@ -17,15 +16,15 @@ function ekaDevApi() {
         }
         try {
           const url = new URL(request.url || "/", "http://localhost");
-          const result = await searchEkaMedications(url.searchParams.get("q"), env);
+          const result = await searchIndianMedicines(url.searchParams.get("q"));
           response.statusCode = 200;
           response.setHeader("Content-Type", "application/json; charset=utf-8");
           response.setHeader("Cache-Control", "private, no-store");
           response.end(JSON.stringify(result));
         } catch (error) {
-          response.statusCode = Number(error?.statusCode) || 503;
+          response.statusCode = Number(error?.statusCode) || 502;
           response.setHeader("Content-Type", "application/json; charset=utf-8");
-          response.end(JSON.stringify({ found: false, medicines: [], message: error instanceof Error ? error.message : "Eka medication search is unavailable." }));
+          response.end(JSON.stringify({ medicines: [], message: error instanceof Error ? error.message : "Indian medicine search is unavailable." }));
         }
       });
     },
@@ -33,7 +32,7 @@ function ekaDevApi() {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), ekaDevApi()],
+  plugins: [react(), tailwindcss(), indianMedicineDevApi()],
   server: {
     host: "0.0.0.0",
     port: 3000,
@@ -41,8 +40,6 @@ export default defineConfig({
     hmr: {
       port: 3000,
     },
-    // Mirror the same-origin Vercel function used in production so local
-    // browser testing does not call DailyMed directly and hit CORS restrictions.
     proxy: {
       "/api/dailymed-search": {
         target: "https://dailymed.nlm.nih.gov",
